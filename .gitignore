@@ -44,3 +44,7 @@ next-env.d.ts
 # `scripts/copy-maplibre-worker.mjs` on prebuild/predev. Generated from the pinned
 # maplibre-gl@6.3.0, never edited by hand, never committed.
 /public/maplibre/
+
+# playwright browser lane
+/playwright-report/
+/test-results/

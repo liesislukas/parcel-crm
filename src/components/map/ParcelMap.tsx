@@ -139,7 +139,12 @@ export default function ParcelMap(props: ParcelMapProps) {
       map.getCanvas().style.cursor = "";
     };
 
-    map.on("load", () => {
+    // Runs exactly once, whichever trigger below wins the race.
+    let layersReady = false;
+
+    const init = () => {
+      if (layersReady) return;
+      layersReady = true;
       loadedRef.current = true;
 
       map.addSource("parcels", {
@@ -203,7 +208,18 @@ export default function ParcelMap(props: ParcelMapProps) {
       const filter = selectionFilter(selectedPinsRef.current);
       map.setFilter("parcels-selected-fill", filter);
       map.setFilter("parcels-selected-line", filter);
-    });
+    };
+
+    // `load` is NOT "the style is ready" — it is "the style is ready AND every in-view tile
+    // of every source has settled". A single stalled tile from the third-party OSM basemap
+    // therefore blocks the parcel layers from ever being added, with no error logged: the
+    // cached basemap paints, the parcels are silently absent, and `map.loaded()` stays
+    // false forever. `style.load` fires as soon as the style JSON is parsed, which is all
+    // `addSource`/`addLayer` actually require, so the parcels no longer depend on a tile
+    // CDN we do not control. `load` is kept as an idempotent backstop; when tiles behave
+    // normally it fires strictly after `style.load`, so behaviour is unchanged.
+    map.once("style.load", init);
+    map.once("load", init);
 
     map.on("click", "parcels-fill", (e) => {
       if (drawingRef.current) return;
