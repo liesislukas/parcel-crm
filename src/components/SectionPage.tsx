@@ -17,8 +17,7 @@ export function SectionPage({ section }: { section: NavSection }) {
       <section className="max-w-2xl rounded-lg border border-dashed border-black/15 p-5 dark:border-white/20">
         <h2 className="text-sm font-medium">Not built yet</h2>
         <p className="mt-1 text-sm text-black/60 dark:text-white/60">
-          This deployment is the application shell. The panel below is what this section will
-          carry:
+          This deployment is the application shell. The panel below is what this section will carry:
         </p>
         <ul className="mt-3 flex list-disc flex-col gap-1.5 pl-5 text-sm text-black/70 dark:text-white/70">
           {section.planned.map((item) => (

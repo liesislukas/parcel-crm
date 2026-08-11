@@ -1,0 +1,62 @@
+"use client";
+
+import type { ParcelMeta } from "./MapWorkspace";
+
+type SelectionSummaryProps = {
+  count: number;
+  meta: ParcelMeta;
+  onShowIncomplete: () => void;
+};
+
+/**
+ * The honesty panel. Every number is interpolated from the committed meta file — nothing
+ * here is hardcoded — and the scope lines are always visible rather than tucked behind a
+ * disclosure, so a reviewer can see at a glance that this is a labelled working subset and
+ * not a silent partial load.
+ */
+export default function SelectionSummary({ count, meta, onShowIncomplete }: SelectionSummaryProps) {
+  const notLoaded = meta.countyParcelCount - meta.parcelCount;
+
+  return (
+    <div
+      data-testid="selection-summary"
+      className="mb-3 rounded-lg border border-black/10 p-3 text-xs leading-relaxed dark:border-white/15"
+    >
+      <p data-testid="selection-count" className="text-sm font-semibold">
+        {count} parcel{count === 1 ? "" : "s"} selected
+      </p>
+      <p className="text-black/60 dark:text-white/60">
+        Selected: parcels whose centre point falls inside the drawn shape.
+      </p>
+      <p className="mt-2 font-semibold">
+        Working subset — {meta.parcelCount.toLocaleString("en-US")} of{" "}
+        {meta.countyParcelCount.toLocaleString("en-US")} Rock Island County parcels loaded.
+      </p>
+      <p className="text-black/60 dark:text-white/60">
+        Bounded area: {meta.bboxLabel} ({meta.areaLabel}). Parcels intersecting this box are
+        included, so a few extend past its edge.
+      </p>
+      <p className="text-black/60 dark:text-white/60">
+        Source: {meta.sourceOrg} parcel layer (ArcGIS FeatureServer), retrieved{" "}
+        {new Date(meta.retrievedAt).toISOString().slice(0, 10)}. The remaining{" "}
+        {notLoaded.toLocaleString("en-US")} county parcels are not loaded in this build.{" "}
+        <a href={meta.sourceLayerUrl} target="_blank" rel="noreferrer" className="underline">
+          View source layer
+        </a>
+      </p>
+      <button
+        type="button"
+        data-testid="show-incomplete"
+        onClick={onShowIncomplete}
+        disabled={meta.incompletePins.length === 0}
+        className="mt-2 rounded-md border border-black/20 px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/25"
+      >
+        Show a parcel with incomplete source data
+      </button>
+      <p className="text-black/60 dark:text-white/60">
+        {meta.incompletePins.length} of the {meta.parcelCount.toLocaleString("en-US")} loaded
+        parcels are missing at least one source field.
+      </p>
+    </div>
+  );
+}

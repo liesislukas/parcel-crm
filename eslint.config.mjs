@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Verbatim copies of maplibre-gl@6.3.0 dist files, written into public/ by
+    // `scripts/copy-maplibre-worker.mjs` on prebuild/predev. Upstream minified code — not
+    // ours to lint, and linting it buries the real output in thousands of warnings.
+    "public/maplibre/**",
   ]),
 ]);
 

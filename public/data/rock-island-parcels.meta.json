@@ -1,0 +1,38 @@
+{
+  "county": "rock-island",
+  "countyName": "Rock Island County, IL",
+  "sourceLayerUrl": "https://services9.arcgis.com/6FnscPPlUa9DXXOk/arcgis/rest/services/Parcels/FeatureServer/0",
+  "sourceOrg": "Rock Island County GIS",
+  "sourceItemId": "9cae8a64ab0e4cea99758f741ca43b3c",
+  "sourceLicense": "For use by the general public",
+  "retrievedAt": "2026-08-11T22:48:11.490Z",
+  "bbox": [
+    -90.58,
+    41.49,
+    -90.54,
+    41.52
+  ],
+  "bboxLabel": "90.5800°W–90.5400°W, 41.4900°N–41.5200°N",
+  "areaLabel": "≈3.3 km × 3.3 km over the City of Rock Island, IL",
+  "spatialRel": "esriSpatialRelIntersects",
+  "parcelCount": 6026,
+  "countyParcelCount": 65955,
+  "fields": [
+    "PIN",
+    "owner1_name",
+    "taxbill_name",
+    "EAV",
+    "EMV",
+    "taxbill_addr",
+    "taxbill_csz",
+    "GIS_acres_num"
+  ],
+  "incompletePins": [
+    "0725200001",
+    "0736303002",
+    "1601221005",
+    "1602312038",
+    "1602412002",
+    "UNKNOWN"
+  ]
+}

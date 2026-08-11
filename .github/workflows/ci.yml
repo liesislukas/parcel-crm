@@ -1,0 +1,25 @@
+name: ci
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request: {}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm test
+      # Playwright (`npm run test:browser`) is deliberately NOT run here. It targets the
+      # deployed Vercel URL, so running it on every push would race the very deploy it is
+      # meant to verify, and it would fail on forks where that URL is not available.
+      # It is run against the live URL after the deploy lands instead.

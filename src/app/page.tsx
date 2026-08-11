@@ -1,21 +1,23 @@
-import { SectionPage } from "@/components/SectionPage";
-import { futureSections, sections } from "@/lib/nav";
-
-const map = sections[0];
+import MapSection from "@/components/map/MapSection";
+import { futureSections } from "@/lib/nav";
 
 export default function MapPage() {
   return (
     <div className="flex flex-col gap-12">
-      <SectionPage section={map} />
+      <section aria-labelledby="parcel-map-heading">
+        <h1 id="parcel-map-heading" className="text-lg font-semibold tracking-tight">
+          Rock Island County parcel map
+        </h1>
+        <MapSection />
+      </section>
 
       <section aria-labelledby="future-scope">
         <h2 id="future-scope" className="text-lg font-semibold tracking-tight">
           Beyond this milestone
         </h2>
         <p className="mt-1 max-w-2xl text-sm text-black/60 dark:text-white/60">
-          These sections would expand the CRM past the initial acquisition workflow. They are
-          shown <strong className="font-medium">disabled</strong> and are not part of this
-          milestone.
+          These sections would expand the CRM past the initial acquisition workflow. They are shown{" "}
+          <strong className="font-medium">disabled</strong> and are not part of this milestone.
         </p>
         <ul className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {futureSections.map((section) => (

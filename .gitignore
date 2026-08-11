@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# maplibre worker + its shared chunk, copied out of node_modules by
+# `scripts/copy-maplibre-worker.mjs` on prebuild/predev. Generated from the pinned
+# maplibre-gl@6.3.0, never edited by hand, never committed.
+/public/maplibre/

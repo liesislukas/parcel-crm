@@ -24,10 +24,7 @@ const branch = process.env.VERCEL_GIT_COMMIT_REF;
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <div className="flex min-h-screen flex-col sm:flex-row">
           <Sidebar />
