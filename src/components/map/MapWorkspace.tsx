@@ -5,6 +5,7 @@ import { pointInRing, rectRing, type LngLat } from "@/lib/geo";
 import { loadParcelData, type ParcelData } from "@/lib/parcelData";
 import ParcelDetails from "./ParcelDetails";
 import ParcelMap from "./ParcelMap";
+import SelectionActions from "./SelectionActions";
 import SelectionSummary from "./SelectionSummary";
 
 const BUTTON_CLASS =
@@ -155,6 +156,18 @@ export default function MapWorkspace() {
         onParcelClick={handleParcelClick}
         onRectDrawn={handleRectDrawn}
         flyTo={flyTo}
+      />
+
+      <SelectionActions
+        selectedPins={selectedPins}
+        parcelsByPin={data.parcelsByPin}
+        adjacency={data.adjacency}
+        onRemovePin={handleRemovePin}
+        onFocusPin={setFocusedPin}
+        onReplaceSelection={(pins) => {
+          setSelectedPins(pins);
+          setFocusedPin(null);
+        }}
       />
 
       <div className="mt-3">
