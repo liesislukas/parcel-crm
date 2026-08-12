@@ -20,18 +20,27 @@ export const PROJECTS_STORAGE_KEY = "parcel-crm.projects.v1";
 export const STORAGE_UNAVAILABLE_MESSAGE =
   "Could not save in this browser — storage is unavailable (private window or full quota). The project was not saved.";
 
-type ProjectsEnvelope = { version: 1; projects: Project[] };
+/**
+ * The storage KEY does not change with the envelope version. Changing it would orphan every
+ * project saved before ISSUE-013; instead v2 writes `parcelIds` and reads still accept a v1
+ * envelope, whose `pins` are resolved to ids at read time by `resolveProjectParcelIds`.
+ */
+type ProjectsEnvelope = { version: 2; projects: Project[] };
 
 function isProject(v: unknown): v is Project {
   if (typeof v !== "object" || v === null) return false;
   const p = v as Record<string, unknown>;
+  const stringArray = (v: unknown): boolean =>
+    Array.isArray(v) && v.every((entry) => typeof entry === "string");
+  // Either shape is valid: v2 records carry `parcelIds`, v1 records carry `pins`. A v1 record
+  // that failed validation here would be silently dropped, losing a user's saved project.
+  const hasMembers = stringArray(p.parcelIds) || stringArray(p.pins);
   return (
     typeof p.id === "string" &&
     p.id.length > 0 &&
     typeof p.name === "string" &&
     p.name.length > 0 &&
-    Array.isArray(p.pins) &&
-    p.pins.every((pin) => typeof pin === "string") &&
+    hasMembers &&
     typeof p.createdAt === "string" &&
     typeof p.updatedAt === "string"
   );
@@ -40,7 +49,7 @@ function isProject(v: unknown): v is Project {
 /**
  * Never throws and never clears the key on a parse failure — corrupt data is left alone
  * rather than destroyed. Returns `[]` for every failure mode: no `localStorage` (SSR), the
- * key absent, `JSON.parse` throwing, a non-object envelope, the wrong version, or a
+ * key absent, `JSON.parse` throwing, a non-object envelope, an unrecognised version, or a
  * non-array `projects`. Per-entry validation drops individual malformed projects rather than
  * discarding the whole list.
  */
@@ -58,7 +67,7 @@ function readEnvelope(): Project[] {
 
   if (typeof parsed !== "object" || parsed === null) return [];
   const envelope = parsed as Record<string, unknown>;
-  if (envelope.version !== 1) return [];
+  if (envelope.version !== 2 && envelope.version !== 1) return [];
   if (!Array.isArray(envelope.projects)) return [];
 
   return envelope.projects.filter(isProject);
@@ -66,7 +75,7 @@ function readEnvelope(): Project[] {
 
 /** Any write failure (quota, private mode) is re-thrown as `STORAGE_UNAVAILABLE_MESSAGE`. */
 function writeEnvelope(projects: Project[]): void {
-  const envelope: ProjectsEnvelope = { version: 1, projects };
+  const envelope: ProjectsEnvelope = { version: 2, projects };
   try {
     globalThis.localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(envelope));
   } catch {
@@ -83,16 +92,16 @@ export function findProject(id: string): Project | null {
   return readEnvelope().find((p) => p.id === id) ?? null;
 }
 
-export function createProject(name: string, pins: readonly string[]): Project {
+export function createProject(name: string, parcelIds: readonly string[]): Project {
   const trimmed = name.trim();
   if (trimmed === "") throw new Error("Project name is required");
 
-  const dedupedPins = [...new Set(pins)];
+  const deduped = [...new Set(parcelIds)];
   const now = new Date().toISOString();
   const project: Project = {
     id: crypto.randomUUID(),
     name: trimmed,
-    pins: dedupedPins,
+    parcelIds: deduped,
     createdAt: now,
     updatedAt: now,
   };
@@ -103,15 +112,18 @@ export function createProject(name: string, pins: readonly string[]): Project {
   return project;
 }
 
-export function replaceProjectPins(id: string, pins: readonly string[]): Project | null {
+export function replaceProjectParcelIds(
+  id: string,
+  parcelIds: readonly string[],
+): Project | null {
   const projects = readEnvelope();
   const index = projects.findIndex((p) => p.id === id);
   if (index === -1) return null;
 
-  const dedupedPins = [...new Set(pins)];
+  const deduped = [...new Set(parcelIds)];
   const updated: Project = {
     ...projects[index],
-    pins: dedupedPins,
+    parcelIds: deduped,
     updatedAt: new Date().toISOString(),
   };
   projects[index] = updated;
@@ -122,4 +134,33 @@ export function replaceProjectPins(id: string, pins: readonly string[]): Project
 export function deleteProject(id: string): void {
   const projects = readEnvelope().filter((p) => p.id !== id);
   writeEnvelope(projects);
+}
+
+/**
+ * The single migration point between v1 projects (saved by PIN) and the id-keyed model.
+ *
+ * A v1 pin that matches several records contributes ALL of them: a v1 project could not
+ * distinguish the 29 colliding PIN values, and dropping records would understate the
+ * project's acreage. A pin with no match contributes nothing and surfaces through
+ * `ProjectStats.missingIds`. The migration is computed on read and never persisted, so a
+ * stored project is never rewritten behind the user's back.
+ */
+export function resolveProjectParcelIds(
+  project: Project,
+  idsByPin: ReadonlyMap<string, string[]>,
+): string[] {
+  if (Array.isArray(project.parcelIds) && project.parcelIds.length > 0) {
+    return project.parcelIds;
+  }
+
+  const resolved: string[] = [];
+  const seen = new Set<string>();
+  for (const pin of project.pins ?? []) {
+    for (const id of idsByPin.get(pin) ?? []) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      resolved.push(id);
+    }
+  }
+  return resolved;
 }
