@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { formatAcres, formatMoney, UNAVAILABLE_LABEL, type FieldState } from "@/lib/parcel";
 import type { OwnerRecord as OwnerRecordType } from "@/lib/owners";
 import { effectiveContact, type EffectiveContact, type EnrichmentStore } from "@/lib/store";
+import EnrichContactFlow from "@/components/owners/EnrichContactFlow";
 
 const PANEL_CLASS = "rounded-lg border border-black/10 p-4 text-sm dark:border-white/15";
 const MISSING_CLASS = "text-black/45 italic dark:text-white/45";
@@ -92,7 +93,7 @@ type OwnerRecordProps = {
   onEnriched: (s: EnrichmentStore) => void;
 };
 
-export default function OwnerRecord({ owner, store }: OwnerRecordProps) {
+export default function OwnerRecord({ owner, store, onEnriched }: OwnerRecordProps) {
   const contact = effectiveContact(owner, store);
 
   const taxBillNames = [
@@ -199,8 +200,8 @@ export default function OwnerRecord({ owner, store }: OwnerRecordProps) {
         ) : null}
       </section>
 
-      {/* 5. Enrichment slot — W5 mounts <EnrichContactFlow> here. */}
-      <></>
+      {/* 5. Enrichment slot */}
+      <EnrichContactFlow owner={owner} contact={contact} onEnriched={onEnriched} />
 
       {/* 6. Parcels */}
       <section>
