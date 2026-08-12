@@ -101,9 +101,21 @@ test("a selected parcel shows the distance to the nearest substation and line", 
   const map = await waitForMapReady(page);
   const details = page.getByTestId("parcel-details");
 
-  // The deterministic centre click, same pattern as test/browser/map.spec.ts: `fitBounds`
-  // puts the bbox centre at the canvas centre, and the poll only covers the worker still
-  // tiling the GeoJSON, not any ambiguity about which parcel is hit.
+  // The map opens on the whole county now, so the old "the canvas centre is always inside a
+  // known parcel" assumption is dead. `show-incomplete` is the deterministic replacement: it
+  // focuses meta.incompletePins[0] and flies to its centroid at zoom 15. `data-camera-zoom`
+  // is published on `moveend`, so waiting for it is race-free — a click dispatched mid-flight
+  // would interrupt MapLibre's animation and hit-test halfway across the county.
+  await page.getByTestId("show-incomplete").click();
+  await expect(details).toContainText("Parcel ID (PIN)");
+  await expect(map).toHaveAttribute("data-camera-zoom", "15.00", { timeout: 30000 });
+
+  // Clearing first means the panel below can only have been populated by the map click.
+  await page.getByTestId("clear-selection").click();
+  await expect(page.getByTestId("selection-count")).toHaveText("0 parcels selected");
+
+  // The poll only covers PMTiles range requests still landing, not any ambiguity about
+  // which parcel is hit — the canvas centre is now that parcel's own centroid.
   await expect(async () => {
     await map.click();
     await expect(details).toContainText("Parcel ID (PIN)", { timeout: 2000 });

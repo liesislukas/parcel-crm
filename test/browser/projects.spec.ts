@@ -40,6 +40,9 @@ async function drawRectangle(
   // follows replaces the selection outright, so the flown-to parcel does not contaminate it.
   await page.getByTestId("show-incomplete").click();
   await expect(page.getByTestId("parcel-details")).toContainText("Parcel ID (PIN)");
+  // `data-camera-zoom` is published on `moveend`: waiting for it is what keeps the drag
+  // below from starting while the camera is still flying across the county.
+  await expect(map).toHaveAttribute("data-camera-zoom", "15.00", { timeout: 30000 });
 
   await page.getByTestId("draw-area").click();
   await expect(page.getByTestId("draw-area")).toHaveAttribute("aria-pressed", "true");
@@ -215,15 +218,35 @@ test("reopening re-highlights the parcels, and adding one recalculates", async (
   await reopenedMap.scrollIntoViewIfNeeded();
   const reopenedBox = await reopenedMap.boundingBox();
   expect(reopenedBox).not.toBeNull();
-  const addX = reopenedBox!.x + reopenedBox!.width / 2 + 150;
-  const addY = reopenedBox!.y + reopenedBox!.height / 2;
+  // A single fixed offset is not enough at county scale: the project is now assembled from
+  // whatever the zoom-15 drag caught, so one particular offset can land on a parcel that is
+  // already a member (the click handler is idempotent by design) or on a street gap, where
+  // the count correctly never moves. Cycling outward offsets finds a neighbouring
+  // not-yet-selected parcel; the assertion itself is unchanged and still exact — the count
+  // must go up by exactly one.
+  const addOffsets = [
+    [150, 0],
+    [-150, 0],
+    [0, 120],
+    [0, -120],
+    [220, 100],
+    [-220, -100],
+    [110, -160],
+    [-110, 160],
+  ] as const;
+  let addAttempt = 0;
   await expect(async () => {
-    await page.mouse.click(addX, addY);
+    const [dx, dy] = addOffsets[addAttempt % addOffsets.length];
+    addAttempt += 1;
+    await page.mouse.click(
+      reopenedBox!.x + reopenedBox!.width / 2 + dx,
+      reopenedBox!.y + reopenedBox!.height / 2 + dy,
+    );
     await expect(page.getByTestId("selection-parcels")).toHaveText(
       `${createdCount + 1} parcel${createdCount + 1 === 1 ? "" : "s"}`,
       { timeout: 1000 },
     );
-  }).toPass({ timeout: 15000 });
+  }).toPass({ timeout: 30000 });
 
   await page.getByTestId("save-project-selection").click();
   await expect(page.getByTestId("create-project-result")).toContainText("Saved");

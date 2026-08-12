@@ -281,6 +281,18 @@ export default function ParcelMap(props: ParcelMapProps) {
         selectedIdsRef.current.add(id);
       }
 
+      // The camera's settled zoom, published to the DOM on every `moveend`. The browser lane
+      // needs a race-free "the camera has arrived" signal: the map now opens on the whole
+      // county and flies to a parcel on demand, and a click dispatched mid-flight both
+      // interrupts the flight and hit-tests wherever the camera happens to be. `moveend`
+      // rather than `idle` deliberately — `idle` also waits on basemap tiles, which one
+      // stalled third-party tile can hold back forever (the ISSUE-003 defect class below).
+      const publishCameraZoom = () => {
+        container.dataset.cameraZoom = map.getZoom().toFixed(2);
+      };
+      publishCameraZoom();
+      map.on("moveend", publishCameraZoom);
+
       // Proof, from the DOM, that the power layers were actually created — a silently
       // absent layer paints a healthy map and logs nothing (the defect class recorded in
       // ISSUE-003). The browser lane in test/browser/power.spec.ts asserts on this.

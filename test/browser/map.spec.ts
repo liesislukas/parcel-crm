@@ -54,6 +54,13 @@ async function flyToKnownParcel(page: Page): Promise<void> {
   await expect(page.getByTestId("parcel-details").locator('[data-field="pin"] dd')).toHaveText(
     INCOMPLETE_PIN,
   );
+  // Wait for the camera to actually arrive. `show-incomplete` flies to zoom 15, and a click
+  // dispatched mid-flight interrupts MapLibre's animation and hit-tests halfway across the
+  // county. `data-camera-zoom` is published on `moveend`, so this is race-free: the value
+  // only reads 15.00 once the flight has finished.
+  await expect(page.getByTestId("parcel-map")).toHaveAttribute("data-camera-zoom", "15.00", {
+    timeout: 30000,
+  });
 }
 
 /** Reads the integer out of "N parcels selected". */

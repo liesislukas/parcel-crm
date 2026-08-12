@@ -114,13 +114,41 @@ test("reaches the owner record from a parcel on the map", async ({ page }) => {
   const map = await waitForMapReady(page);
   const details = page.getByTestId("parcel-details");
 
-  // Same deterministic centre-click-with-retry pattern as `map.spec.ts` — `fitBounds` puts
-  // the bbox centre at the canvas centre, which always lands inside a real parcel, but the
-  // web worker tiling the GeoJSON can still be mid-flight on the first click.
+  // The map opens on the whole county now, so the old "the canvas centre is always inside a
+  // known parcel" assumption is dead. `show-incomplete` is the deterministic replacement: it
+  // focuses meta.incompletePins[0] and flies to its centroid at zoom 15. `data-camera-zoom`
+  // is published on `moveend`, so waiting for it is race-free — a click dispatched mid-flight
+  // would interrupt MapLibre's animation and hit-test halfway across the county.
+  await page.getByTestId("show-incomplete").click();
+  await expect(details).toContainText("Parcel ID (PIN)");
+  await expect(map).toHaveAttribute("data-camera-zoom", "15.00", { timeout: 30000 });
+
+  // That parcel is deliberately one with missing source fields, and county-wide
+  // incompletePins[0] (PIN 0331120001) publishes no owner1_name at all — so it has no CRM
+  // owner record by design. This test needs a parcel that HAS an owner, so it clicks
+  // outwards from the centre until the details panel offers the owner link. Its neighbours
+  // sit 65-200 m away, which is 18-56 px at zoom 15.
+  await map.scrollIntoViewIfNeeded();
+  const box = await map.boundingBox();
+  expect(box).not.toBeNull();
+  const offsets = [
+    [0, -40],
+    [40, 0],
+    [-40, 0],
+    [0, 40],
+    [60, -60],
+    [-60, 60],
+    [60, 60],
+    [-60, -60],
+  ] as const;
+  let attempt = 0;
   await expect(async () => {
-    await map.click();
+    const [dx, dy] = offsets[attempt % offsets.length];
+    attempt += 1;
+    await page.mouse.click(box!.x + box!.width / 2 + dx, box!.y + box!.height / 2 + dy);
     await expect(details).toContainText("Parcel ID (PIN)", { timeout: 2000 });
-  }).toPass({ timeout: 45000 });
+    await expect(page.getByTestId("open-owner-record")).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 60000 });
 
   const ownerRowText = (await details.locator('[data-field="owner"] dd').innerText()).trim();
 
