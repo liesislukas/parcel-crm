@@ -1,32 +1,9 @@
 "use client";
 
-import { useCallback, useSyncExternalStore } from "react";
-import { resetDemoData, restoreDemoData } from "@/lib/demo/ensureSeed";
+import { useCallback, useEffect, useState } from "react";
+import { ensureDemoSeed, resetDemoData, restoreDemoData } from "@/lib/demo/ensureSeed";
 import { loadProjects } from "@/lib/projectStore";
 import { SEEDED_PROJECT_ID } from "@/lib/demo/seedData";
-
-/**
- * Deviation from the plan: a plain `useState` + `useEffect(() => setState(...), [])` one-shot
- * read trips this repo's `react-hooks/set-state-in-effect` lint rule (eslint-plugin-react-hooks
- * 7.1.1, pinned in package.json — newer than the plan). The codebase's own established idiom
- * for a hydration-safe one-shot external read is `useSyncExternalStore` (see
- * `SimulationControls.tsx`, `ContactHistory.tsx`); `subscribeToNothing` never notifies, so the
- * value is (re-)read only on mount/hydration, matching the plan's intended behaviour exactly.
- */
-function subscribeToNothing(): () => void {
-  return () => {};
-}
-
-function getSeededPresentSnapshot(): boolean {
-  return loadProjects().some((p) => p.id === SEEDED_PROJECT_ID);
-}
-
-/** `true` on the server and on the first client paint — hides the restore button until the
- * post-hydration check on the client proves it should show, exactly like the plan's `null`
- * initial state did. */
-function getSeededPresentServerSnapshot(): boolean {
-  return true;
-}
 
 const RESET_CONFIRM =
   'Clear the seeded demo projects and every simulated campaign in this browser, leaving both pages empty? Acquisition records and tasks are not affected — use "Reset acquisition demo data" on the Acquisitions page for those. This cannot be undone.';
@@ -40,11 +17,33 @@ const CAMPAIGNS_COPY =
   "The campaigns badged SEEDED were generated in this browser the first time you opened the app and run to completion by the in-app simulator, so the lifecycle counts are populated before you do anything. Nothing was ever sent. Campaigns you create yourself are never overwritten and never badged. Campaigns are stored in this browser only, under the localStorage key parcel-crm.campaigns.v1 — this deployment has no server database, so nothing here appears in another browser, another device, or a private window.";
 
 export function DemoDataNotice({ surface }: { surface: "projects" | "campaigns" }) {
-  const seededPresent = useSyncExternalStore(
-    subscribeToNothing,
-    getSeededPresentSnapshot,
-    getSeededPresentServerSnapshot,
-  );
+  // Presence check, hydration-safe: starts `null` (renders no restore button, matching
+  // server output), then resolves once the client confirms the seed pass — including
+  // waiting for it to finish, per the note above — has actually run.
+  //
+  // Deviation from the plan: awaiting `ensureDemoSeed()` here (idempotent; see its own doc
+  // comment) before the read is required, not just belt-and-braces — `runToCompletion`'s
+  // campaign-store commit can force a re-render of a sibling component (e.g.
+  // `CampaignsWorkspace`) before `ensureDemoSeed` reaches its final `writeManifest` call, and
+  // a one-shot `useEffect` read with no wait can observe stale state with no further
+  // notification to correct it. Awaiting first, then reading, removes the race entirely —
+  // the same "await, then read" idiom `ProjectsExplorer.tsx`'s own load effect uses. This
+  // still does not trip `react-hooks/set-state-in-effect`: the `setState` call happens after
+  // an `await`, inside an async function invoked from the effect, not synchronously at the
+  // effect's top level.
+  const [seededPresent, setSeededPresent] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    async function check() {
+      await ensureDemoSeed();
+      if (cancelled) return;
+      setSeededPresent(loadProjects().some((p) => p.id === SEEDED_PROJECT_ID));
+    }
+    void check();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleReset = useCallback(() => {
     if (!window.confirm(RESET_CONFIRM)) return;
