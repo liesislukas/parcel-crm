@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useSyncExternalStore } from "react";
 import { CHANNEL_LABEL, countsFrom } from "@/lib/campaigns/model";
 import { getServerSnapshot, getSnapshot, subscribe } from "@/lib/campaigns/store";
+import { DemoDataNotice } from "@/components/demo/DemoDataNotice";
+import { DEMO_SEED_KEY, readManifest } from "@/lib/demo/manifest";
 import { CampaignCounts } from "./CampaignCounts";
 import { SimulatedBadge, SimulationBanner } from "./SimulatedBadge";
 import { SimulationControls } from "./SimulationControls";
@@ -12,9 +14,51 @@ import { SimulationControls } from "./SimulationControls";
 const PRIMARY_BUTTON_CLASS =
   "rounded-md border border-black/20 bg-black/5 px-3 py-1.5 text-sm font-medium dark:border-white/25 dark:bg-white/10";
 
+// Copied verbatim from src/components/crm/PipelineTable.tsx lines 21-23, same as W9's
+// project-row badge — pixel-identical SEEDED styling across every surface.
+const BADGE_CLASS = "rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide";
+const SEEDED_BADGE_CLASS = `${BADGE_CLASS} bg-black/[.06] text-black/55 dark:bg-white/[.10] dark:text-white/55`;
+const SEEDED_BADGE_TITLE = "Seeded demo record — not entered by a user of this deployment";
+
+/**
+ * Deviation from the plan: `useState` + `useEffect(() => setState(...), [])` trips this
+ * repo's `react-hooks/set-state-in-effect` lint rule (see `DemoDataNotice.tsx` for the
+ * fuller note). `readManifest()` re-parses JSON on every call, so `getSnapshot` caches the
+ * last array by the raw string it came from — `useSyncExternalStore` requires a referentially
+ * stable return value when nothing has changed, or React warns of a possible infinite loop.
+ */
+const EMPTY_SEEDED_IDS: string[] = [];
+let cachedManifestRaw: string | null = null;
+let cachedSeededIds: string[] = EMPTY_SEEDED_IDS;
+
+function subscribeToNothing(): () => void {
+  return () => {};
+}
+
+function getSeededCampaignIdsSnapshot(): string[] {
+  if (typeof globalThis.localStorage === "undefined") return EMPTY_SEEDED_IDS;
+  const raw = globalThis.localStorage.getItem(DEMO_SEED_KEY);
+  if (raw === cachedManifestRaw) return cachedSeededIds;
+  cachedManifestRaw = raw;
+  cachedSeededIds = readManifest()?.campaignIds ?? EMPTY_SEEDED_IDS;
+  return cachedSeededIds;
+}
+
+function getSeededCampaignIdsServerSnapshot(): string[] {
+  return EMPTY_SEEDED_IDS;
+}
+
 /** `/campaigns` — the index: the banner, the controls, the campaign list with counts, and the per-owner contact-history directory. */
 export function CampaignsWorkspace(): ReactElement {
   const state = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+
+  // Seeded-ness is read from the demo-seed manifest, not from a new field on `Campaign` —
+  // the campaigns store's shape and version stay untouched.
+  const seededIds = useSyncExternalStore(
+    subscribeToNothing,
+    getSeededCampaignIdsSnapshot,
+    getSeededCampaignIdsServerSnapshot,
+  );
 
   const ownerKeys = Array.from(new Set(state.messages.map((m) => m.ownerKey)));
 
@@ -32,6 +76,8 @@ export function CampaignsWorkspace(): ReactElement {
       </header>
 
       <SimulationBanner />
+
+      <DemoDataNotice surface="campaigns" />
 
       <div className="flex flex-wrap items-center gap-3">
         <Link data-testid="new-campaign" href="/campaigns/new" className={PRIMARY_BUTTON_CLASS}>
@@ -66,6 +112,15 @@ export function CampaignsWorkspace(): ReactElement {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{campaign.name}</span>
                   <SimulatedBadge />
+                  {seededIds.includes(campaign.id) && (
+                    <span
+                      data-testid="campaign-seeded-badge"
+                      className={SEEDED_BADGE_CLASS}
+                      title={SEEDED_BADGE_TITLE}
+                    >
+                      SEEDED
+                    </span>
+                  )}
                   <span className="text-black/60 dark:text-white/60">
                     {CHANNEL_LABEL[campaign.channel]}
                   </span>

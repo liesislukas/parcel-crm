@@ -29,10 +29,18 @@ import { computeProjectStats, contiguityLabel } from "@/lib/project";
 import { deleteProject } from "@/lib/projectStore";
 import { loadParcelData } from "@/lib/parcelData";
 import { toPowerFeature, type PowerFeature, type RawPowerProperties } from "@/lib/power";
+import { DemoDataNotice } from "@/components/demo/DemoDataNotice";
+import { ensureDemoSeed } from "@/lib/demo/ensureSeed";
 import ProjectFilterBar from "./ProjectFilterBar";
 
 const NOTE_CLASS = "mt-2 text-xs text-black/60 dark:text-white/60";
 const BOX_CLASS = "mt-4 rounded-lg border border-black/10 p-4 text-sm dark:border-white/15";
+
+// Copied verbatim from src/components/crm/PipelineTable.tsx lines 21-23 so the SEEDED badge
+// is pixel-identical across the acquisitions pipeline, /projects and /campaigns.
+const BADGE_CLASS = "rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide";
+const SEEDED_BADGE_CLASS = `${BADGE_CLASS} bg-black/[.06] text-black/55 dark:bg-white/[.10] dark:text-white/55`;
+const SEEDED_BADGE_TITLE = "Seeded demo record — not entered by a user of this deployment";
 
 // Work item 0: `src/app/projects/[id]/page.tsx` exists on this base commit — confirmed by
 // `ls src/app/projects`, which lists `[id]/page.tsx` alongside `page.tsx`.
@@ -102,6 +110,10 @@ export default function ProjectsExplorer() {
     let cancelled = false;
 
     async function load() {
+      // Idempotent — a no-op once DemoSeedBoot (mounted in the root layout) has already run.
+      // Called here too so this explorer's own read never races DemoSeedBoot's sibling effect.
+      await ensureDemoSeed();
+
       // Reading storage synchronously here (not during render) is what keeps SSR and
       // hydration correct — the same discipline ISSUE-004's ProjectsPanel used.
       const raw = loadSourceProjects();
@@ -207,6 +219,10 @@ export default function ProjectsExplorer() {
       </p>
 
       <div className="mt-4">
+        <DemoDataNotice surface="projects" />
+      </div>
+
+      <div className="mt-4">
         <ProjectFilterBar
           state={state}
           onChange={(next) => {
@@ -294,6 +310,15 @@ export default function ProjectsExplorer() {
                       </Link>
                     ) : (
                       <span data-testid="project-row-name">{project.name}</span>
+                    )}
+                    {raw?.seeded === true && (
+                      <span
+                        data-testid="project-seeded-badge"
+                        className={`ml-1.5 ${SEEDED_BADGE_CLASS}`}
+                        title={SEEDED_BADGE_TITLE}
+                      >
+                        SEEDED
+                      </span>
                     )}
                   </td>
                   <td

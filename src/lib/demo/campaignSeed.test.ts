@@ -48,9 +48,39 @@ type ChannelCounts = Record<
 >;
 
 const EXPECTED: ChannelCounts = {
-  email: { messages: 7, sent: 7, delivered: 6, clicked: 3, replied: 2, bounced: 1, opened: 5, loggedIn: 1, optedOut: 1 },
-  sms: { messages: 7, sent: 7, delivered: 6, clicked: 3, replied: 3, bounced: 1, opened: 0, loggedIn: 1, optedOut: 1 },
-  direct_mail: { messages: 7, sent: 7, delivered: 6, clicked: 3, replied: 3, bounced: 1, opened: 0, loggedIn: 1, optedOut: 1 },
+  email: {
+    messages: 7,
+    sent: 7,
+    delivered: 6,
+    clicked: 3,
+    replied: 2,
+    bounced: 1,
+    opened: 5,
+    loggedIn: 1,
+    optedOut: 1,
+  },
+  sms: {
+    messages: 7,
+    sent: 7,
+    delivered: 6,
+    clicked: 3,
+    replied: 3,
+    bounced: 1,
+    opened: 0,
+    loggedIn: 1,
+    optedOut: 1,
+  },
+  direct_mail: {
+    messages: 7,
+    sent: 7,
+    delivered: 6,
+    clicked: 3,
+    replied: 3,
+    bounced: 1,
+    opened: 0,
+    loggedIn: 1,
+    optedOut: 1,
+  },
 };
 
 function runSeededCampaign() {
@@ -90,7 +120,9 @@ describe("the seeded campaign's lifecycle counts are deterministic", () => {
 
     for (const channel of ["email", "sms", "direct_mail"] as const) {
       const campaign = state.campaigns.find((c) => c.channel === channel)!;
-      const messageIds = state.messages.filter((m) => m.campaignId === campaign.id).map((m) => m.id);
+      const messageIds = state.messages
+        .filter((m) => m.campaignId === campaign.id)
+        .map((m) => m.id);
       const facts = state.events
         .filter((e) => messageIds.includes(e.messageId))
         .map((e) => ({ messageId: e.messageId, factType: e.factType }));
