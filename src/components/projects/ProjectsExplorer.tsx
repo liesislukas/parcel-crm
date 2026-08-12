@@ -55,10 +55,32 @@ function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === "string");
 }
 
-function rawPins(project: SourceProject): string[] | null {
-  if (isStringArray(project.pins)) return project.pins;
-  if (isStringArray(project.parcelPins)) return project.parcelPins;
-  return null;
+/**
+ * Member parcel ids for a raw stored record. v2 projects store ids; projects saved before
+ * ISSUE-013 store PINs, which map through `idsByPin` — a colliding PIN contributes every
+ * record it names, matching `resolveProjectParcelIds`.
+ */
+function rawMemberIds(project: SourceProject, lookup: ParcelLookup): string[] | null {
+  if (isStringArray(project.parcelIds)) return project.parcelIds;
+
+  const pins = isStringArray(project.pins)
+    ? project.pins
+    : isStringArray(project.parcelPins)
+      ? project.parcelPins
+      : null;
+  if (pins === null) return null;
+  if (lookup === null) return [];
+
+  const resolved: string[] = [];
+  const seen = new Set<string>();
+  for (const pin of pins) {
+    for (const id of lookup.idsByPin.get(pin) ?? []) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      resolved.push(id);
+    }
+  }
+  return resolved;
 }
 
 export default function ProjectsExplorer() {
@@ -112,7 +134,8 @@ export default function ProjectsExplorer() {
         ]);
         if (cancelled) return;
         setParcelLookup({
-          parcelsByPin: new Map(parcelData.parcelsByPin),
+          parcelsById: new Map(parcelData.parcelsById),
+          idsByPin: new Map(parcelData.idsByPin),
           adjacency: parcelData.adjacency,
         });
         if (powerResponse.ok) {
@@ -248,10 +271,10 @@ export default function ProjectsExplorer() {
           <tbody>
             {outcome.matched.map((project) => {
               const raw = rawById.get(project.id);
-              const pins = raw ? rawPins(raw) : null;
+              const memberIds = raw ? rawMemberIds(raw, parcelLookup) : null;
               const stats =
-                pins !== null && parcelLookup !== null
-                  ? computeProjectStats(pins, parcelLookup.parcelsByPin, parcelLookup.adjacency)
+                memberIds !== null && parcelLookup !== null
+                  ? computeProjectStats(memberIds, parcelLookup.parcelsById, parcelLookup.adjacency)
                   : null;
               const createdAt =
                 raw && typeof raw.createdAt === "string"

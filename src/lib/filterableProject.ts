@@ -1,7 +1,7 @@
 import { numberField, type FieldState, type Parcel } from "@/lib/parcel";
 import { computeProjectStats } from "@/lib/project";
 import type { AdjacencyIndex } from "@/lib/adjacency";
-import { polygonCentroid } from "@/lib/geo";
+import type { LngLat } from "@/lib/geo";
 import { nearestPowerFeature, type PowerFeature } from "@/lib/power";
 import {
   ACQUISITION_STAGES,
@@ -24,14 +24,16 @@ import { POWER_ACCESS_SOURCE } from "@/lib/powerAccess";
  *   storage key independently via `loadSourceProjects` so it never imports React/DOM code
  *   from `projectStore.ts` and stays a pure reconciliation layer over whatever is in
  *   storage, malformed or not.
- * - `Project` type (`src/lib/project.ts`): `{ id, name, pins: string[], createdAt, updatedAt }`.
- *   There is no embedded acreage field — `src/lib/project.ts` deliberately never stores
- *   acreage, blocks, or owner count; `computeProjectStats(pins, parcelsByPin, adjacency)`
- *   recomputes them from the source parcels every time, summing acreage once per DISTINCT
- *   footprint (condo/PUD duplicate-outline correction). This adapter reuses that exact
- *   function for the acreage ladder's `pins`/`parcelPins` rung — see the note above that
- *   ladder below for why a naive per-pin sum would silently disagree with the acreage
- *   already shown on `/projects` and `/projects/[id]`.
+ * - `Project` type (`src/lib/project.ts`): `{ id, name, parcelIds: string[], pins?: string[],
+ *   createdAt, updatedAt }` since ISSUE-013 — members are parcel ids (`String(OBJECTID)`),
+ *   with `pins` kept read-only for projects saved before it. There is no embedded acreage
+ *   field — `src/lib/project.ts` deliberately never stores acreage, blocks, or owner count;
+ *   `computeProjectStats(parcelIds, parcelsById, adjacency)` recomputes them from the source
+ *   parcels every time, summing acreage once per DISTINCT footprint (condo/PUD
+ *   duplicate-outline correction). This adapter reuses that exact function for the acreage
+ *   ladder's member rung — see the note above that ladder below for why a naive per-member
+ *   sum would silently disagree with the acreage already shown on `/projects` and
+ *   `/projects/[id]`.
  * - `src/app/projects/[id]/page.tsx` EXISTS — `hasProjectDetailRoute` is `true`.
  * - Sibling stores (coordinator amendment, unchanged by this file's header): `parcel-crm.acquisition.v1`
  *   in `src/lib/store.ts` (`AcquisitionStore.records` keyed by `entityKey = "<type>:<id>"`,
@@ -49,8 +51,12 @@ import { POWER_ACCESS_SOURCE } from "@/lib/powerAccess";
 
 export type SourceProject = Record<string, unknown>;
 
-/** A resolved parcel lookup: the loaded parcel subset plus its adjacency index. */
-export type ParcelLookup = { parcelsByPin: Map<string, Parcel>; adjacency: AdjacencyIndex } | null;
+/** A resolved parcel lookup: the loaded county records, the PIN index and the adjacency index. */
+export type ParcelLookup = {
+  parcelsById: Map<string, Parcel>;
+  idsByPin: Map<string, string[]>;
+  adjacency: AdjacencyIndex;
+} | null;
 
 /** The minimal sibling-store shapes this adapter reads. Never written by this module. */
 export type CrmStores = {
@@ -144,8 +150,9 @@ export function loadCrmStores(): CrmStores {
 
 /**
  * `true` iff at least one record has no `parcels` array, has no numeric combined-acreage
- * field, and does have a `parcelPins` or `pins` string array. This is the only condition
- * under which the explorer fetches the 2.96 MB parcel file on `/projects`.
+ * field, and does have a `parcelIds`, `parcelPins` or `pins` string array. This is the only
+ * condition under which the explorer loads the committed parcel attributes file on
+ * `/projects`.
  */
 export function needsParcelLookup(projects: SourceProject[]): boolean {
   return projects.some((project) => {
@@ -155,7 +162,11 @@ export function needsParcelLookup(projects: SourceProject[]): boolean {
       numberField(project.totalAcres).present ||
       numberField(project.acres).present;
     if (hasNumericAcreage) return false;
-    return isStringArray(project.pins) || isStringArray(project.parcelPins);
+    return (
+      isStringArray(project.parcelIds) ||
+      isStringArray(project.pins) ||
+      isStringArray(project.parcelPins)
+    );
   });
 }
 
@@ -163,10 +174,33 @@ function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === "string");
 }
 
-function resolvePins(project: SourceProject): string[] | null {
-  if (isStringArray(project.pins)) return project.pins;
-  if (isStringArray(project.parcelPins)) return project.parcelPins;
-  return null;
+/**
+ * The project's member parcel ids. A v2 project already stores them. A project saved before
+ * ISSUE-013 stores PINs, which are mapped through `idsByPin` — a colliding PIN contributes
+ * every record it names, because a v1 project could not distinguish them and dropping
+ * records would understate acreage. Returns `null` when the record names no members at all.
+ */
+function resolveMemberIds(project: SourceProject, lookup: ParcelLookup): string[] | null {
+  if (isStringArray(project.parcelIds)) return project.parcelIds;
+
+  const pins = isStringArray(project.pins)
+    ? project.pins
+    : isStringArray(project.parcelPins)
+      ? project.parcelPins
+      : null;
+  if (pins === null) return null;
+  if (lookup === null) return [];
+
+  const resolved: string[] = [];
+  const seen = new Set<string>();
+  for (const pin of pins) {
+    for (const id of lookup.idsByPin.get(pin) ?? []) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      resolved.push(id);
+    }
+  }
+  return resolved;
 }
 
 function resolveOutreachRank(state: string | undefined): number {
@@ -278,26 +312,26 @@ function toFilterableAcres(
     }
   }
 
-  // Rung 2: `pins`/`parcelPins` string array — the shape the shipped `Project` type
-  // actually uses. `computeProjectStats` (owned by ISSUE-004, `src/lib/project.ts`) is
-  // reused here rather than a naive per-pin sum: it sums acreage once per DISTINCT
-  // parcel footprint, which matters because Rock Island County files condominium/PUD
-  // units repeatedly against one outline (up to 107 records against a single 10.46-ac
-  // parcel). A naive sum would silently report a DIFFERENT "combined acreage" than the
-  // one already shown on `/projects/[id]` for the same project — reusing the shipped
-  // function is what keeps this filter's number honest and consistent with the rest of
-  // the app.
-  const pins = resolvePins(project);
-  if (pins !== null) {
+  // Rung 2: `parcelIds` (or a legacy `pins`/`parcelPins`) string array — the shape the
+  // shipped `Project` type actually uses. `computeProjectStats` (owned by ISSUE-004,
+  // `src/lib/project.ts`) is reused here rather than a naive per-member sum: it sums
+  // acreage once per DISTINCT parcel footprint, which matters because Rock Island County
+  // files condominium/PUD units repeatedly against one outline (107 records against a
+  // single 10.46-ac parcel). A naive sum would silently report a DIFFERENT "combined
+  // acreage" than the one already shown on `/projects/[id]` for the same project —
+  // reusing the shipped function is what keeps this filter's number honest and consistent
+  // with the rest of the app.
+  const memberIds = resolveMemberIds(project, parcelLookup);
+  if (memberIds !== null) {
     if (parcelLookup === null) {
       return { acres: { present: false }, acresParcelsWithSource: 0, acresParcelsTotal: 0 };
     }
-    const stats = computeProjectStats(pins, parcelLookup.parcelsByPin, parcelLookup.adjacency);
+    const stats = computeProjectStats(memberIds, parcelLookup.parcelsById, parcelLookup.adjacency);
     const withSource = stats.members.length - stats.acreageMissingCount;
     return {
       acres: withSource > 0 ? { present: true, value: stats.combinedAcres } : { present: false },
       acresParcelsWithSource: withSource,
-      acresParcelsTotal: pins.length,
+      acresParcelsTotal: memberIds.length,
     };
   }
 
@@ -324,14 +358,15 @@ function toFilterablePower(
   if (POWER_ACCESS_SOURCE.loaded === false) return { present: false };
   if (parcelLookup === null || powerFeatures === null) return { present: false };
 
-  const pins = resolvePins(project);
-  if (pins === null) return { present: false };
+  const memberIds = resolveMemberIds(project, parcelLookup);
+  if (memberIds === null) return { present: false };
 
-  const origins: { pin: string; centre: ReturnType<typeof polygonCentroid> }[] = [];
-  for (const pin of pins) {
-    const parcel = parcelLookup.parcelsByPin.get(pin);
-    if (!parcel) continue;
-    origins.push({ pin, centre: polygonCentroid(parcel.geometry) });
+  const origins: { pin: string; centre: LngLat }[] = [];
+  for (const id of memberIds) {
+    const parcel = parcelLookup.parcelsById.get(id);
+    // The two records with an empty ring have no centroid, so they contribute no origin.
+    if (!parcel || parcel.centroid === null) continue;
+    origins.push({ pin: parcel.pin, centre: parcel.centroid });
   }
   // A project whose member parcels have no centroid in the loaded data reads Unknown —
   // never 0, never invented. This is the power amendment's explicit rule.

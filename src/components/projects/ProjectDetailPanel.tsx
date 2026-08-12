@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { loadParcelData, type ParcelData } from "@/lib/parcelData";
 import { computeProjectStats, contiguityLabel, type Project } from "@/lib/project";
-import { findProject } from "@/lib/projectStore";
+import { findProject, resolveProjectParcelIds } from "@/lib/projectStore";
 import { formatAcres, UNAVAILABLE_LABEL } from "@/lib/parcel";
 
 const NOTE_CLASS = "mt-2 text-xs text-black/60 dark:text-white/60";
@@ -65,10 +65,12 @@ export default function ProjectDetailPanel({ id }: { id: string }) {
     );
   }
 
-  const stats = computeProjectStats(project.pins, data.parcelsByPin, data.adjacency);
+  // A project saved before ISSUE-013 stores PINs; they resolve to ids here, on read only.
+  const memberIds = resolveProjectParcelIds(project, data.idsByPin);
+  const stats = computeProjectStats(memberIds, data.parcelsById, data.adjacency);
 
-  function blockLabel(pin: string): string {
-    const blockIndex = stats.blocks.findIndex((block) => block.includes(pin));
+  function blockLabel(id: string): string {
+    const blockIndex = stats.blocks.findIndex((block) => block.includes(id));
     return `Block ${blockIndex + 1}`;
   }
 
@@ -146,10 +148,10 @@ export default function ProjectDetailPanel({ id }: { id: string }) {
           excluded from the total.
         </p>
       ) : null}
-      {stats.missingPins.length > 0 ? (
+      {stats.missingIds.length > 0 ? (
         <p data-testid="missing-pins-note" className={NOTE_CLASS}>
-          {stats.missingPins.length} member parcel ID(s) are not in the loaded working subset and
-          are excluded: {stats.missingPins.join(", ")}.
+          {stats.missingIds.length} member parcel record(s) are no longer in the loaded county data
+          and are excluded from these figures.
         </p>
       ) : null}
       <p data-testid="owner-count-note" className={NOTE_CLASS}>
@@ -173,7 +175,7 @@ export default function ProjectDetailPanel({ id }: { id: string }) {
         </thead>
         <tbody>
           {stats.members.map((parcel) => (
-            <tr data-testid="detail-member-row" data-pin={parcel.pin} key={parcel.pin}>
+            <tr data-testid="detail-member-row" data-pin={parcel.pin} key={parcel.id}>
               <td
                 data-testid="detail-member-pin"
                 className="border-b border-black/5 py-2 font-mono dark:border-white/10"
@@ -196,7 +198,7 @@ export default function ProjectDetailPanel({ id }: { id: string }) {
                 data-testid="detail-member-block"
                 className="border-b border-black/5 py-2 dark:border-white/10"
               >
-                {blockLabel(parcel.pin)}
+                {blockLabel(parcel.id)}
               </td>
             </tr>
           ))}

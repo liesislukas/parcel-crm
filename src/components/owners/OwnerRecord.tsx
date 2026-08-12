@@ -22,7 +22,7 @@ const METHODOLOGY_NOTE =
   "from the owner name, so the same owner always shows the same values. Emails use the reserved " +
   ".invalid domain and phone numbers use the NANP 555-0100–555-0199 block reserved for fictional " +
   "use, so neither can be contacted. Because that block holds only 100 numbers and there are " +
-  "4,573 owners, phone numbers repeat across owners. No contact data was purchased, scraped, or " +
+  "50,040 owners, phone numbers repeat across owners. No contact data was purchased, scraped, or " +
   "obtained from Rock Island County.";
 
 /**

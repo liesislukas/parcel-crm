@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { Feature, FeatureCollection, Geometry } from "geojson";
-import { formatAcres, toParcel, type Parcel, type RawParcelProperties } from "@/lib/parcel";
+import { formatAcres, type Parcel } from "@/lib/parcel";
 import {
   buildOwnerRecords,
   ownersWithoutName,
@@ -15,7 +14,7 @@ import {
   readEnrichments,
   type EnrichmentStore,
 } from "@/lib/store";
-import type { ParcelMeta } from "@/lib/parcelData";
+import { loadParcelData, type ParcelMeta } from "@/lib/parcelData";
 import OwnerRecord from "@/components/owners/OwnerRecord";
 
 type CompletenessFilter = "all" | "complete" | "incomplete";
@@ -31,7 +30,7 @@ const METHODOLOGY_NOTE =
   "from the owner name, so the same owner always shows the same values. Emails use the reserved " +
   ".invalid domain and phone numbers use the NANP 555-0100–555-0199 block reserved for fictional " +
   "use, so neither can be contacted. Because that block holds only 100 numbers and there are " +
-  "4,573 owners, phone numbers repeat across owners. No contact data was purchased, scraped, or " +
+  "50,040 owners, phone numbers repeat across owners. No contact data was purchased, scraped, or " +
   "obtained from Rock Island County.";
 
 export default function OwnersWorkspace() {
@@ -40,7 +39,7 @@ export default function OwnersWorkspace() {
   // useSearchParams() returns the already-decoded value — do not decodeURIComponent it again.
   const selectedKey = searchParams.get("owner");
 
-  const [raw, setRaw] = useState<FeatureCollection | null>(null);
+  const [parcels, setParcels] = useState<Parcel[] | null>(null);
   const [meta, setMeta] = useState<ParcelMeta | null>(null);
   const [store, setStore] = useState<EnrichmentStore | null>(null);
   const [failed, setFailed] = useState(false);
@@ -53,16 +52,12 @@ export default function OwnersWorkspace() {
 
     async function load() {
       try {
-        const [dataResponse, metaResponse] = await Promise.all([
-          fetch("/data/rock-island-parcels.json"),
-          fetch("/data/rock-island-parcels.meta.json"),
-        ]);
-        if (!dataResponse.ok || !metaResponse.ok) throw new Error("parcel data fetch failed");
-        const collection = (await dataResponse.json()) as FeatureCollection;
-        const metaJson = (await metaResponse.json()) as ParcelMeta;
+        // The same shared, single-flight loader the map uses, so opening /owners after /
+        // costs no second download of the county attributes file.
+        const data = await loadParcelData();
         if (cancelled) return;
-        setRaw(collection);
-        setMeta(metaJson);
+        setParcels(data.parcels);
+        setMeta(data.meta);
         // Never read localStorage during render — that would break hydration. Seeding it
         // here, once, after the client-only effect has run, is the safe point.
         setStore(readEnrichments());
@@ -76,13 +71,6 @@ export default function OwnersWorkspace() {
       cancelled = true;
     };
   }, []);
-
-  const parcels = useMemo<Parcel[] | null>(() => {
-    if (!raw) return null;
-    return raw.features.map((feature) =>
-      toParcel(feature as Feature<Geometry, RawParcelProperties>),
-    );
-  }, [raw]);
 
   const owners = useMemo<OwnerRecordType[]>(
     () => (parcels ? buildOwnerRecords(parcels) : []),
@@ -134,7 +122,7 @@ export default function OwnersWorkspace() {
     );
   }
 
-  if (!raw || !meta || !store) {
+  if (!parcels || !meta || !store) {
     return <p className={`mt-4 ${PANEL_CLASS}`}>Loading Rock Island County parcels…</p>;
   }
 
