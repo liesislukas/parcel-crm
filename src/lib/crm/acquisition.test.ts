@@ -13,9 +13,7 @@ import {
 
 describe("entityKey", () => {
   it("survives a slash and spaces in the id untouched", () => {
-    expect(entityKey({ type: "owner", id: "ZETINA M/GRANJA O" })).toBe(
-      "owner:ZETINA M/GRANJA O",
-    );
+    expect(entityKey({ type: "owner", id: "ZETINA M/GRANJA O" })).toBe("owner:ZETINA M/GRANJA O");
   });
 });
 

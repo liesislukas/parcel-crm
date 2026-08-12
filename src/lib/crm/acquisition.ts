@@ -10,12 +10,7 @@ export type EntityType = "owner" | "parcel" | "project";
 export type EntityRef = { type: EntityType; id: string; label: string; detail: string };
 
 export type AcquisitionStage =
-  | "not-contacted"
-  | "contacted"
-  | "negotiating"
-  | "under-contract"
-  | "closed-won"
-  | "closed-lost";
+  "not-contacted" | "contacted" | "negotiating" | "under-contract" | "closed-won" | "closed-lost";
 
 export type InterestLevel = "unknown" | "not-interested" | "passive" | "interested" | "motivated";
 
