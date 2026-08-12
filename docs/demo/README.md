@@ -20,7 +20,9 @@ fixed bar via `page.evaluate` rather than burned in during editing. Recorded aga
 ![Parcel CRM walkthrough](./parcel-crm-demo.gif)
 
 Recorded against the deployed runtime, not a local build. Every frame is the hosted URL above,
-serving commit `61ca2b2`.
+serving the full-county build (commit `d9fdf88`): all 65,955 parcels, the county-wide power grid,
+the 2,000-parcel selection guard, the seeded demo state with its restore control, and a saved
+assemblage reopening with its members framed and highlighted.
 
 > **Re-record needed (2026-08-12).** ISSUE-013 raised coverage from the 6,026-parcel working
 > subset to all 65,955 county records, so the walkthrough above still shows the old subset
