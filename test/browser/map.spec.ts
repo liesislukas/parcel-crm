@@ -134,6 +134,47 @@ test("clicking a parcel opens the details panel", async ({ page }) => {
   await expect(page.getByTestId("selection-count")).toHaveText("1 parcel selected");
 });
 
+test("parcels still render when the basemap tile server stalls", async ({ page }) => {
+  // Regression guard for 64c3a8e. The parcel source and layers used to be added inside
+  // `map.on("load")`, and MapLibre only fires `load` once every in-view tile of every
+  // source has SETTLED. One OpenStreetMap tile left hanging is enough to hold that event
+  // back forever, so `addSource`/`addLayer` never ran: the cached basemap still painted,
+  // nothing was logged, and the parcels were silently absent.
+  //
+  // The stall is the whole point. An aborted or errored tile reaches state "errored",
+  // which counts as settled, `load` fires as usual, and the defect does NOT reproduce —
+  // so this handler must never fulfil, abort or continue the request.
+  let stalledTiles = 0;
+  await page.route("**/tile.openstreetmap.org/**", () => {
+    stalledTiles += 1;
+  });
+
+  // The route is registered after `beforeEach` has already navigated, so reload with the
+  // basemap now permanently hanging. `domcontentloaded` rather than the default `load`:
+  // the tile requests stay pending for the lifetime of the page.
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+
+  const map = await waitForMapReady(page);
+  const details = page.getByTestId("parcel-details");
+
+  // Guards against the test quietly becoming vacuous: if nothing was intercepted, the
+  // basemap was healthy and the rest of this spec proves nothing.
+  await expect
+    .poll(() => stalledTiles, { message: "no basemap tile request was intercepted" })
+    .toBeGreaterThan(0);
+
+  // Same deterministic centre click as the healthy-basemap spec above. A DOM-level result
+  // is the honest proof that the parcel layers exist: `parcels-fill` has to be present and
+  // painted for MapLibre to hit-test the click and for the details panel to populate.
+  await expect(async () => {
+    await map.click();
+    await expect(details).toContainText("Parcel ID (PIN)", { timeout: 2000 });
+  }).toPass({ timeout: 45000 });
+
+  await expect(details.locator('[data-field="pin"] dd')).toHaveText(CENTRE_PIN);
+  await expect(page.getByTestId("selection-count")).toHaveText("1 parcel selected");
+});
+
 test("drawing a rectangle selects multiple parcels", async ({ page }) => {
   const map = await waitForMapReady(page);
 
