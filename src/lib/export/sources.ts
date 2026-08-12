@@ -1,6 +1,5 @@
-import type { Feature, FeatureCollection, Geometry } from "geojson";
-import { toParcel, type Parcel, type RawParcelProperties } from "@/lib/parcel";
-import type { ParcelMeta } from "@/lib/parcelData";
+import type { Parcel } from "@/lib/parcel";
+import { loadParcelData, type ParcelMeta } from "@/lib/parcelData";
 import {
   EXPORT_DATASETS,
   buildCampaignActivityRows,
@@ -17,7 +16,7 @@ import { buildOwnerRecords, type OwnerRecord } from "@/lib/owners";
 import { effectiveContact, readEnrichments, type EnrichmentStore } from "@/lib/store";
 import { factToState } from "@/lib/campaigns/model";
 import { getSnapshot as getCampaignsSnapshot, type CampaignsState } from "@/lib/campaigns/store";
-import { findProject, loadProjects } from "@/lib/projectStore";
+import { findProject, loadProjects, resolveProjectParcelIds } from "@/lib/projectStore";
 import type { Project } from "@/lib/project";
 
 /**
@@ -37,18 +36,14 @@ export type ProjectOptions =
 
 /** Mirrors `MapWorkspace.tsx` lines 44–61: same fetch paths, same error string, so the
  * export can never disagree with the map about what parcel data is loaded. */
-async function loadParcelSource(): Promise<{ parcels: Parcel[]; meta: ParcelMeta }> {
-  const [dataResponse, metaResponse] = await Promise.all([
-    fetch("/data/rock-island-parcels.json"),
-    fetch("/data/rock-island-parcels.meta.json"),
-  ]);
-  if (!dataResponse.ok || !metaResponse.ok) throw new Error("parcel data fetch failed");
-  const collection = (await dataResponse.json()) as FeatureCollection;
-  const meta = (await metaResponse.json()) as ParcelMeta;
-  const parcels = collection.features.map((feature) =>
-    toParcel(feature as Feature<Geometry, RawParcelProperties>),
-  );
-  return { parcels, meta };
+async function loadParcelSource(): Promise<{
+  parcels: Parcel[];
+  meta: ParcelMeta;
+  parcelsById: ReadonlyMap<string, Parcel>;
+  idsByPin: ReadonlyMap<string, string[]>;
+}> {
+  const { parcels, meta, parcelsById, idsByPin } = await loadParcelData();
+  return { parcels, meta, parcelsById, idsByPin };
 }
 
 /**
@@ -75,23 +70,30 @@ export async function loadProjectOptions(): Promise<ProjectOptions> {
   };
 }
 
-/** The member PINs of one saved project, or an empty set when the project no longer exists. */
-async function memberPins(projectId: string): Promise<Set<string>> {
+/**
+ * The member parcel ids of one saved project, or an empty set when the project no longer
+ * exists. A project saved before ISSUE-013 stores PINs, resolved here through `idsByPin`.
+ */
+function memberIds(projectId: string, idsByPin: ReadonlyMap<string, string[]>): Set<string> {
   const project = findProject(projectId);
-  return new Set(project ? project.pins : []);
+  return new Set(project ? resolveProjectParcelIds(project, idsByPin) : []);
 }
 
 /**
  * Built from ALL saved projects (not just the scoped one), so an unscoped parcels export
- * still shows every parcel's project membership.
+ * still shows every parcel's project membership. Keyed by parcel id: PIN is not unique
+ * county-wide, so a PIN-keyed map would attribute one project's parcel to another record.
  */
-function buildProjectNamesByPin(projects: Project[]): Map<string, string[]> {
+function buildProjectNamesByParcelId(
+  projects: Project[],
+  idsByPin: ReadonlyMap<string, string[]>,
+): Map<string, string[]> {
   const map = new Map<string, string[]>();
   for (const project of projects) {
-    for (const pin of project.pins) {
-      const existing = map.get(pin);
+    for (const id of resolveProjectParcelIds(project, idsByPin)) {
+      const existing = map.get(id);
       if (existing) existing.push(project.name);
-      else map.set(pin, [project.name]);
+      else map.set(id, [project.name]);
     }
   }
   return map;
@@ -216,28 +218,32 @@ export async function buildDataset(
 
   switch (id) {
     case "parcels": {
-      const { parcels, meta } = await loadParcelSource();
+      const { parcels, meta, idsByPin } = await loadParcelSource();
       const projects = loadProjects();
-      const projectNamesByPin = buildProjectNamesByPin(projects);
-      const pins = scope.kind === "project" ? await memberPins(scope.id) : null;
-      const scopedParcels = pins ? parcels.filter((p) => pins.has(p.pin)) : parcels;
+      const projectNamesByParcelId = buildProjectNamesByParcelId(projects, idsByPin);
+      const ids = scope.kind === "project" ? memberIds(scope.id, idsByPin) : null;
+      const scopedParcels = ids ? parcels.filter((p) => ids.has(p.id)) : parcels;
       const dataset = EXPORT_DATASETS.find((d) => d.id === "parcels")!;
       return {
         header: headerOf(dataset),
         rows: buildParcelRows({
           parcels: scopedParcels,
           meta,
-          projectNamesByPin,
+          projectNamesByParcelId,
           scope,
           generatedAt,
         }),
       };
     }
     case "owners": {
-      const { parcels } = await loadParcelSource();
+      const { parcels, parcelsById, idsByPin } = await loadParcelSource();
       const records = buildOwnerRecords(parcels);
       const store = readEnrichments();
-      const pins = scope.kind === "project" ? await memberPins(scope.id) : null;
+      // Owner records carry PINs, so the member ids are mapped back to the PINs they name.
+      const ids = scope.kind === "project" ? memberIds(scope.id, idsByPin) : null;
+      const pins = ids
+        ? new Set([...ids].flatMap((id) => (parcelsById.has(id) ? [parcelsById.get(id)!.pin] : [])))
+        : null;
       const scopedRecords = pins
         ? records.filter((r) => r.parcels.some((p) => pins.has(p.pin)))
         : records;

@@ -2,8 +2,8 @@
 
 import type { ReactElement } from "react";
 import { useEffect, useMemo, useState } from "react";
-import type { Feature, FeatureCollection, Geometry } from "geojson";
-import { toParcel, type RawParcelProperties } from "@/lib/parcel";
+import type { Parcel } from "@/lib/parcel";
+import { loadParcelData } from "@/lib/parcelData";
 import { deriveOwners, type Owner } from "@/lib/owners";
 import { destinationFor, type Provenance } from "@/lib/campaigns/contact";
 import { MAX_AUDIENCE, readProjects } from "@/lib/campaigns/store";
@@ -54,6 +54,7 @@ export function AudiencePicker({
 }): ReactElement {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [owners, setOwners] = useState<Owner[]>([]);
+  const [parcelsById, setParcelsById] = useState<ReadonlyMap<string, Parcel>>(new Map());
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [selectedProject, setSelectedProject] = useState<SelectedProject | null>(null);
   const [search, setSearch] = useState("");
@@ -64,17 +65,11 @@ export function AudiencePicker({
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/data/rock-island-parcels.json")
-      .then((res) => {
-        if (!res.ok) throw new Error("bad response");
-        return res.json() as Promise<FeatureCollection<Geometry, RawParcelProperties>>;
-      })
-      .then((geojson) => {
+    loadParcelData()
+      .then((data) => {
         if (cancelled) return;
-        const parcels = geojson.features.map((feature) =>
-          toParcel(feature as Feature<Geometry, RawParcelProperties>),
-        );
-        const derived = deriveOwners(parcels);
+        setParcelsById(data.parcelsById);
+        const derived = deriveOwners(data.parcels);
         setOwners(derived);
         setSelectedKeys(new Set(derived.slice(0, DEFAULT_SELECTED_COUNT).map((o) => o.ownerKey)));
         setLoadState("ready");
@@ -128,6 +123,19 @@ export function AudiencePicker({
     });
   }
 
+  /**
+   * The PINs a saved project covers. A v2 project stores parcel ids, which resolve to PINs
+   * through the loaded county records; a project saved before ISSUE-013 stores PINs already.
+   * Owner records are keyed by PIN, so this is the join.
+   */
+  function memberPinsOf(project: { parcelPins: string[]; parcelIds: string[] }): string[] {
+    if (project.parcelIds.length === 0) return project.parcelPins;
+    return project.parcelIds.flatMap((memberId) => {
+      const parcel = parcelsById.get(memberId);
+      return parcel ? [parcel.pin] : [];
+    });
+  }
+
   function handleProjectChange(id: string) {
     setProjectId(id);
     if (id === "") {
@@ -136,7 +144,7 @@ export function AudiencePicker({
     }
     const project = projects.find((p) => p.id === id);
     if (!project) return;
-    const pinSet = new Set(project.parcelPins);
+    const pinSet = new Set(memberPinsOf(project));
     const matched = owners
       .filter((o) => o.parcelPins.some((pin) => pinSet.has(pin)))
       .slice(0, MAX_AUDIENCE);
@@ -182,7 +190,7 @@ export function AudiencePicker({
       {selectedProject !== null && activeProject !== undefined && (
         <p className="text-xs text-black/60 dark:text-white/60">
           Audience from project &quot;{activeProject.name}&quot; — {selectedOwners.length} distinct
-          owners across {activeProject.parcelPins.length} parcels
+          owners across {memberPinsOf(activeProject).length} parcels
         </p>
       )}
 

@@ -168,30 +168,32 @@ export function resetAll(): void {
   for (const listener of listeners) listener();
 }
 
-export function readProjects(): { id: string; name: string; parcelPins: string[] }[] {
+export function readProjects(): {
+  id: string;
+  name: string;
+  parcelPins: string[];
+  parcelIds: string[];
+}[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(PROJECTS_STORAGE_KEY);
     if (raw === null) return [];
     const parsed = JSON.parse(raw) as { version?: number; projects?: unknown } | null;
-    if (parsed?.version === 1 && Array.isArray(parsed.projects)) {
-      // ISSUE-004's shipped Project type calls the member list `pins`; this module's
-      // pre-merge contract guessed `parcelPins`. Accept both, emit `parcelPins`, and
-      // drop records that carry neither rather than crash the picker on undefined.
+    // v2 (ISSUE-013 onwards) stores member parcel ids; v1 stored PINs. Both are read, and
+    // both are emitted, because the audience picker matches owners by PIN and resolves ids
+    // through the loaded county records.
+    if ((parsed?.version === 2 || parsed?.version === 1) && Array.isArray(parsed.projects)) {
+      // ISSUE-004's shipped Project type called the member list `pins`; this module's
+      // pre-merge contract guessed `parcelPins`. Accept both, and drop records that carry
+      // no member list at all rather than crash the picker on undefined.
       return (parsed.projects as Record<string, unknown>[]).flatMap((p) => {
-        const pins = Array.isArray(p.parcelPins)
-          ? p.parcelPins
-          : Array.isArray(p.pins)
-            ? p.pins
-            : null;
-        if (pins === null || typeof p.id !== "string" || typeof p.name !== "string") return [];
-        return [
-          {
-            id: p.id,
-            name: p.name,
-            parcelPins: pins.filter((x) => typeof x === "string") as string[],
-          },
-        ];
+        const stringsOf = (v: unknown): string[] | null =>
+          Array.isArray(v) ? (v.filter((x) => typeof x === "string") as string[]) : null;
+        const pins = stringsOf(p.parcelPins) ?? stringsOf(p.pins);
+        const ids = stringsOf(p.parcelIds);
+        if ((pins === null && ids === null) || typeof p.id !== "string" || typeof p.name !== "string")
+          return [];
+        return [{ id: p.id, name: p.name, parcelPins: pins ?? [], parcelIds: ids ?? [] }];
       });
     }
     return [];

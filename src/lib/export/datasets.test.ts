@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Feature, Geometry } from "geojson";
-import { toParcel, type RawParcelProperties } from "@/lib/parcel";
+import { toParcelFromRow, type ParcelAttrRow } from "@/lib/parcel";
 import type { ParcelMeta } from "@/lib/parcelData";
 import {
   EXPORT_DATASETS,
@@ -14,21 +13,34 @@ import {
   type OwnerExportRecord,
 } from "./datasets";
 
-const SQUARE: Geometry = {
-  type: "Polygon",
-  coordinates: [
-    [
-      [0, 0],
-      [1, 0],
-      [1, 1],
-      [0, 1],
-      [0, 0],
-    ],
-  ],
-};
-
-function feature(properties: RawParcelProperties): Feature<Geometry, RawParcelProperties> {
-  return { type: "Feature", geometry: SQUARE, properties };
+/** One attributes-sidecar row: the eight source fields plus id, centroid and footprint. */
+function attrRow(
+  id: number,
+  properties: {
+    PIN: unknown;
+    owner1_name: unknown;
+    taxbill_name: unknown;
+    EAV: unknown;
+    EMV: unknown;
+    taxbill_addr: unknown;
+    taxbill_csz: unknown;
+    GIS_acres_num: unknown;
+  },
+): ParcelAttrRow {
+  return [
+    id,
+    properties.PIN,
+    properties.owner1_name,
+    properties.taxbill_name,
+    properties.EAV,
+    properties.EMV,
+    properties.taxbill_addr,
+    properties.taxbill_csz,
+    properties.GIS_acres_num,
+    -90.55,
+    41.51,
+    `fp${id}`,
+  ];
 }
 
 const META: ParcelMeta = {
@@ -37,13 +49,24 @@ const META: ParcelMeta = {
   sourceLayerUrl:
     "https://services9.arcgis.com/6FnscPPlUa9DXXOk/arcgis/rest/services/Parcels/FeatureServer/0",
   sourceOrg: "Rock Island County GIS",
+  sourceLicense: "For use by the general public",
   retrievedAt: "2026-08-11T22:48:11.490Z",
-  bbox: [-90.58, 41.49, -90.54, 41.52],
-  bboxLabel: "90.5800°W–90.5400°W, 41.4900°N–41.5200°N",
-  areaLabel: "≈3.3 km × 3.3 km over the City of Rock Island, IL",
-  parcelCount: 6026,
+  coverage: "full-county",
+  bbox: [-91.069856, 41.32681, -90.159715, 41.770087],
+  bboxLabel: "91.0699°W–90.1597°W, 41.3268°N–41.7701°N",
+  areaLabel: "the full extent of Rock Island County, IL",
+  parcelCount: 65955,
   countyParcelCount: 65955,
+  mappedParcelCount: 65953,
+  unmappedPins: ["1710408032", "1710408043"],
   incompletePins: ["0725200001"],
+  tiles: {
+    path: "/data/rock-island-parcels.pmtiles",
+    layer: "parcels",
+    minzoom: 8,
+    maxzoom: 16,
+    idProperty: "id",
+  },
 };
 
 const PARCELS_HEADER =
@@ -103,8 +126,8 @@ describe("EXPORT_DATASETS invariants", () => {
 
 describe("buildParcelRows", () => {
   it("emits empty mailing cells and a real 0 EAV for the AC5 row (PIN 0725200001)", () => {
-    const parcel = toParcel(
-      feature({
+    const parcel = toParcelFromRow(
+      attrRow(801, {
         PIN: "0725200001",
         owner1_name: "ROCK ISLAND ARSENAL",
         taxbill_name: "ROCK ISLAND ARSENAL",
@@ -119,7 +142,7 @@ describe("buildParcelRows", () => {
     const rows = buildParcelRows({
       parcels: [parcel],
       meta: META,
-      projectNamesByPin: new Map(),
+      projectNamesByParcelId: new Map(),
       scope: { kind: "all" },
       generatedAt: "2026-08-12T14:22:07.123Z",
     });
@@ -137,8 +160,8 @@ describe("buildParcelRows", () => {
   });
 
   it("exports acreage unrounded for PIN 0736101016", () => {
-    const parcel = toParcel(
-      feature({
+    const parcel = toParcelFromRow(
+      attrRow(802, {
         PIN: "0736101016",
         owner1_name: "SOLIDUS GLOBAL LLC",
         taxbill_name: "SOLIDUS GLOBAL LLC",
@@ -153,7 +176,7 @@ describe("buildParcelRows", () => {
     const rows = buildParcelRows({
       parcels: [parcel],
       meta: META,
-      projectNamesByPin: new Map(),
+      projectNamesByParcelId: new Map(),
       scope: { kind: "all" },
       generatedAt: "2026-08-12T14:22:07.123Z",
     });
@@ -163,8 +186,8 @@ describe("buildParcelRows", () => {
   });
 
   it("exports an empty acres cell when GIS_acres_num is 0 (impossible for a polygon)", () => {
-    const parcel = toParcel(
-      feature({
+    const parcel = toParcelFromRow(
+      attrRow(803, {
         PIN: "TESTPIN000",
         owner1_name: "TEST OWNER",
         taxbill_name: "TEST OWNER",
@@ -179,7 +202,7 @@ describe("buildParcelRows", () => {
     const rows = buildParcelRows({
       parcels: [parcel],
       meta: META,
-      projectNamesByPin: new Map(),
+      projectNamesByParcelId: new Map(),
       scope: { kind: "all" },
       generatedAt: "2026-08-12T14:22:07.123Z",
     });
@@ -189,8 +212,8 @@ describe("buildParcelRows", () => {
   });
 
   it("joins linked project names with ; and leaves the cell empty for a parcel in no project", () => {
-    const parcel = toParcel(
-      feature({
+    const parcel = toParcelFromRow(
+      attrRow(804, {
         PIN: "0736312033",
         owner1_name: "RI HOUSING AUTH",
         taxbill_name: "RI HOUSING AUTH",
@@ -205,7 +228,7 @@ describe("buildParcelRows", () => {
     const rows = buildParcelRows({
       parcels: [parcel],
       meta: META,
-      projectNamesByPin: new Map([["0736312033", ["Riverfront North", "Downtown Block"]]]),
+      projectNamesByParcelId: new Map([["804", ["Riverfront North", "Downtown Block"]]]),
       scope: { kind: "all" },
       generatedAt: "2026-08-12T14:22:07.123Z",
     });
@@ -215,8 +238,8 @@ describe("buildParcelRows", () => {
   });
 
   it("writes the scope cell and the source metadata columns verbatim from meta", () => {
-    const parcel = toParcel(
-      feature({
+    const parcel = toParcelFromRow(
+      attrRow(805, {
         PIN: "0736312033",
         owner1_name: "RI HOUSING AUTH",
         taxbill_name: "RI HOUSING AUTH",
@@ -237,7 +260,7 @@ describe("buildParcelRows", () => {
     const rows = buildParcelRows({
       parcels: [parcel],
       meta: META,
-      projectNamesByPin: new Map(),
+      projectNamesByParcelId: new Map(),
       scope,
       generatedAt: "2026-08-12T14:22:07.123Z",
     });

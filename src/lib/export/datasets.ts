@@ -288,13 +288,13 @@ function fieldCell<T extends string | number>(state: FieldState<T>): string {
 export type BuildParcelRowsInput = {
   parcels: Parcel[]; // already filtered to the scope by the caller
   meta: ParcelMeta;
-  projectNamesByPin: Map<string, string[]>; // empty map until ISSUE-004 ships
+  projectNamesByParcelId: ReadonlyMap<string, string[]>; // keyed by parcel id, not PIN
   scope: ExportScope;
   generatedAt: string; // one ISO string per download
 };
 
 export function buildParcelRows(input: BuildParcelRowsInput): string[][] {
-  const { parcels, meta, projectNamesByPin, scope, generatedAt } = input;
+  const { parcels, meta, projectNamesByParcelId, scope, generatedAt } = input;
   const scopeValue = scopeCell(scope);
 
   return parcels.map((parcel) => [
@@ -306,7 +306,7 @@ export function buildParcelRows(input: BuildParcelRowsInput): string[][] {
     fieldCell(parcel.mailingStreet),
     fieldCell(parcel.mailingCityStateZip),
     fieldCell(parcel.acres),
-    csvCell(projectNamesByPin.get(parcel.pin)?.join(";") ?? ""),
+    csvCell(projectNamesByParcelId.get(parcel.id)?.join(";") ?? ""),
     csvCell(meta.countyName),
     csvCell(meta.county),
     csvCell("rock-island-county-gis"),
