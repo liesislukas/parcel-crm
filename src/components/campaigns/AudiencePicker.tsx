@@ -198,7 +198,9 @@ export function AudiencePicker({
       <p data-testid="audience-selected-count" className="text-sm font-medium">
         Selected ({selectedOwners.length})
       </p>
-      {capMessage !== null && <p className="text-xs text-red-700 dark:text-red-400">{capMessage}</p>}
+      {capMessage !== null && (
+        <p className="text-xs text-red-700 dark:text-red-400">{capMessage}</p>
+      )}
 
       <ul className="flex max-h-96 flex-col gap-1.5 overflow-y-auto">
         {visibleOwners.map((owner) => {

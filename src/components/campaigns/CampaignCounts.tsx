@@ -4,7 +4,10 @@ import type { ReactElement } from "react";
 import type { Counts } from "@/lib/campaigns/model";
 
 /** The six primary figures, in the exact order the plan specifies. */
-const FIGURES: { key: "messages" | "sent" | "delivered" | "clicked" | "replied" | "bounced"; label: string }[] = [
+const FIGURES: {
+  key: "messages" | "sent" | "delivered" | "clicked" | "replied" | "bounced";
+  label: string;
+}[] = [
   { key: "messages", label: "Messages" },
   { key: "sent", label: "Sent" },
   { key: "delivered", label: "Delivered" },
@@ -41,9 +44,9 @@ export function CampaignCounts({ counts }: { counts: Counts }): ReactElement {
         Opened {counts.opened} · Logged in {counts.loggedIn} · Opted out {counts.optedOut}
       </p>
       <p className="text-black/50 dark:text-white/50">
-        Each figure counts distinct messages that reached that event at least once, not the
-        messages currently in that state. A clicked message is still counted as delivered. Once
-        every message has left &quot;sent&quot;, delivered + bounced equals sent.
+        Each figure counts distinct messages that reached that event at least once, not the messages
+        currently in that state. A clicked message is still counted as delivered. Once every message
+        has left &quot;sent&quot;, delivered + bounced equals sent.
       </p>
     </div>
   );

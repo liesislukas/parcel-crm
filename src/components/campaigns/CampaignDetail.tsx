@@ -27,8 +27,8 @@ export function CampaignDetail({ campaignId }: { campaignId: string }): ReactEle
   if (!campaign) {
     return (
       <p data-testid="campaign-missing">
-        This campaign is not in this browser&apos;s simulation. Campaigns live in this browser
-        only — open <Link href="/campaigns">Campaigns</Link> and create one.
+        This campaign is not in this browser&apos;s simulation. Campaigns live in this browser only
+        — open <Link href="/campaigns">Campaigns</Link> and create one.
       </p>
     );
   }
@@ -54,8 +54,8 @@ export function CampaignDetail({ campaignId }: { campaignId: string }): ReactEle
         </h1>
         <p className="text-sm text-black/65 dark:text-white/65">
           {CHANNEL_LABEL[campaign.channel]}
-          {campaign.projectName !== null ? ` · ${campaign.projectName}` : ""} · Created
-          (simulated) {CREATED_FORMAT.format(new Date(campaign.createdAtMs))}
+          {campaign.projectName !== null ? ` · ${campaign.projectName}` : ""} · Created (simulated){" "}
+          {CREATED_FORMAT.format(new Date(campaign.createdAtMs))}
         </p>
       </header>
 

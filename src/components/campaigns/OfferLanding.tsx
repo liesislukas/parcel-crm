@@ -3,13 +3,19 @@
 import type { ReactElement } from "react";
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
-import { getServerSnapshot, getSnapshot, recordBrowserFact, subscribe } from "@/lib/campaigns/store";
+import {
+  getServerSnapshot,
+  getSnapshot,
+  recordBrowserFact,
+  subscribe,
+} from "@/lib/campaigns/store";
 import { SimulatedBadge, SimulationBanner } from "./SimulatedBadge";
 
 const BUTTON_CLASS =
   "rounded-md border border-black/20 px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/25";
 
-type LoginState = { status: "idle" } | { status: "success" } | { status: "refused"; reason: string };
+type LoginState =
+  { status: "idle" } | { status: "success" } | { status: "refused"; reason: string };
 
 /**
  * The simulated owner-facing landing page reached via `/r/[token]`. This is what the
@@ -23,9 +29,7 @@ export function OfferLanding({ token }: { token: string }): ReactElement {
 
   if (!message) {
     return (
-      <p data-testid="offer-missing">
-        Unknown short link. Campaigns live in this browser only.
-      </p>
+      <p data-testid="offer-missing">Unknown short link. Campaigns live in this browser only.</p>
     );
   }
 
@@ -45,8 +49,8 @@ export function OfferLanding({ token }: { token: string }): ReactElement {
           Simulated owner landing page <SimulatedBadge />
         </h1>
         <p className="text-sm text-black/60 dark:text-white/60">
-          This is the page the owner would see after clicking the short link. It is rendered
-          inside the CRM for the demo and is not published anywhere.
+          This is the page the owner would see after clicking the short link. It is rendered inside
+          the CRM for the demo and is not published anywhere.
         </p>
       </header>
 
@@ -64,7 +68,12 @@ export function OfferLanding({ token }: { token: string }): ReactElement {
           Logged into the application (simulated) — recorded on this message&apos;s timeline.
         </p>
       ) : (
-        <button type="button" data-testid="portal-login" className={BUTTON_CLASS} onClick={handleLogin}>
+        <button
+          type="button"
+          data-testid="portal-login"
+          className={BUTTON_CLASS}
+          onClick={handleLogin}
+        >
           Sign in to the owner portal (simulated)
         </button>
       )}

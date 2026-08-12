@@ -51,8 +51,8 @@ export function ContactHistory({ ownerKey }: { ownerKey: string }): ReactElement
           Contact history — {firstMessage.ownerName} <SimulatedBadge />
         </h1>
         <p data-testid="history-summary" className="text-sm text-black/65 dark:text-white/65">
-          {entries.length} simulated touches across {campaignIds.size} campaigns and{" "}
-          {channels.size} channels
+          {entries.length} simulated touches across {campaignIds.size} campaigns and {channels.size}{" "}
+          channels
         </p>
       </header>
 
@@ -100,8 +100,9 @@ export function ContactHistory({ ownerKey }: { ownerKey: string }): ReactElement
               className="rounded-md border border-black/10 p-2 dark:border-white/15"
             >
               <p>
-                {TIMESTAMP_FORMAT.format(new Date(e.effectiveAt))} · {CHANNEL_LABEL[message.channel]}{" "}
-                · {FACT_LABEL[message.channel][e.factType] ?? e.factType} ·{" "}
+                {TIMESTAMP_FORMAT.format(new Date(e.effectiveAt))} ·{" "}
+                {CHANNEL_LABEL[message.channel]} ·{" "}
+                {FACT_LABEL[message.channel][e.factType] ?? e.factType} ·{" "}
                 {campaign ? (
                   <Link href={`/campaigns/${campaign.id}`} className="underline">
                     {campaign.name}
