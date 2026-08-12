@@ -14,6 +14,9 @@ type ParcelMapProps = {
   onParcelClick: (pin: string) => void;
   onRectDrawn: (a: LngLat, b: LngLat) => void;
   flyTo: { center: LngLat; zoom: number; nonce: number } | null;
+  power: FeatureCollection | null;
+  powerVisible: boolean;
+  fitBbox: { bbox: [number, number, number, number]; nonce: number } | null;
 };
 
 const EMPTY_COLLECTION: FeatureCollection = { type: "FeatureCollection", features: [] };
@@ -72,6 +75,9 @@ export default function ParcelMap(props: ParcelMapProps) {
   const onParcelClickRef = useRef(props.onParcelClick);
   const onRectDrawnRef = useRef(props.onRectDrawn);
   const flyToRef = useRef(props.flyTo);
+  const powerRef = useRef(props.power);
+  const powerVisibleRef = useRef(props.powerVisible);
+  const fitBboxRef = useRef(props.fitBbox);
 
   // Drag bookkeeping for the rubber-band rectangle.
   const dragStartRef = useRef<LngLat | null>(null);
@@ -87,6 +93,9 @@ export default function ParcelMap(props: ParcelMapProps) {
     onParcelClickRef.current = props.onParcelClick;
     onRectDrawnRef.current = props.onRectDrawn;
     flyToRef.current = props.flyTo;
+    powerRef.current = props.power;
+    powerVisibleRef.current = props.powerVisible;
+    fitBboxRef.current = props.fitBbox;
   });
 
   // Map creation — exactly once. Never recreated when props change.
@@ -113,7 +122,8 @@ export default function ParcelMap(props: ParcelMapProps) {
     map.addControl(
       new maplibregl.AttributionControl({
         compact: false,
-        customAttribution: "Parcels: Rock Island County GIS",
+        customAttribution:
+          "Parcels: Rock Island County GIS · Power: © OpenStreetMap contributors (ODbL)",
       }),
       "bottom-right",
     );
@@ -180,6 +190,37 @@ export default function ParcelMap(props: ParcelMapProps) {
         filter: selectionFilter([]),
       });
 
+      // Power infrastructure sits above the parcels and below the rubber band, so the
+      // drawn rectangle is never occluded. Added with an empty collection when the fetch
+      // has not landed yet, deliberately — it removes any ordering dependency between the
+      // power fetch and `style.load`.
+      map.addSource("power", { type: "geojson", data: powerRef.current ?? EMPTY_COLLECTION });
+      map.addLayer({
+        id: "power-lines",
+        type: "line",
+        source: "power",
+        filter: ["==", ["get", "kind"], "transmission-line"],
+        layout: {
+          visibility: powerVisibleRef.current ? "visible" : "none",
+          "line-cap": "round",
+          "line-join": "round",
+        },
+        paint: { "line-color": "#7c3aed", "line-width": 2.5, "line-opacity": 0.85 },
+      });
+      map.addLayer({
+        id: "power-substations",
+        type: "circle",
+        source: "power",
+        filter: ["==", ["get", "kind"], "substation"],
+        layout: { visibility: powerVisibleRef.current ? "visible" : "none" },
+        paint: {
+          "circle-radius": 6,
+          "circle-color": "#7c3aed",
+          "circle-stroke-color": "#ffffff",
+          "circle-stroke-width": 1.5,
+        },
+      });
+
       // The rubber band sits above the parcels so the drawn shape stays visible over them.
       map.addSource("draw-rect", { type: "geojson", data: EMPTY_COLLECTION });
       map.addLayer({
@@ -208,6 +249,12 @@ export default function ParcelMap(props: ParcelMapProps) {
       const filter = selectionFilter(selectedPinsRef.current);
       map.setFilter("parcels-selected-fill", filter);
       map.setFilter("parcels-selected-line", filter);
+
+      // Proof, from the DOM, that the power layers were actually created — a silently
+      // absent layer paints a healthy map and logs nothing (the defect class recorded in
+      // ISSUE-003). The browser lane in test/browser/power.spec.ts asserts on this.
+      container.dataset.powerLayers =
+        map.getLayer("power-substations") && map.getLayer("power-lines") ? "ready" : "missing";
     };
 
     // `load` is NOT "the style is ready" — it is "the style is ready AND every in-view tile
@@ -315,6 +362,38 @@ export default function ParcelMap(props: ParcelMapProps) {
     if (!map || !target) return;
     map.flyTo({ center: [target.center.lng, target.center.lat], zoom: target.zoom });
   }, [flyNonce]);
+
+  // The power snapshot may land after the map is already up.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loadedRef.current) return;
+    map.getSource<maplibregl.GeoJSONSource>("power")?.setData(props.power ?? EMPTY_COLLECTION);
+  }, [props.power]);
+
+  // The overlay toggle.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !loadedRef.current) return;
+    const v = props.powerVisible ? "visible" : "none";
+    map.setLayoutProperty("power-lines", "visibility", v);
+    map.setLayoutProperty("power-substations", "visibility", v);
+  }, [props.powerVisible]);
+
+  // `nonce` exists so asking for the same box twice still re-fits, following the `flyNonce`
+  // pattern above.
+  const fitNonce = props.fitBbox?.nonce;
+  useEffect(() => {
+    const map = mapRef.current;
+    const t = fitBboxRef.current;
+    if (!map || !t) return;
+    map.fitBounds(
+      [
+        [t.bbox[0], t.bbox[1]],
+        [t.bbox[2], t.bbox[3]],
+      ],
+      { padding: 24 },
+    );
+  }, [fitNonce]);
 
   return (
     <div
