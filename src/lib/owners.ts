@@ -92,7 +92,10 @@ export function mockPhoneFor(ownerKey: string): string {
   return `(309) 555-01${pad2(n)}`;
 }
 
-function mailingAddressFor(street: FieldState<string>, cityStateZip: FieldState<string>): string | null {
+function mailingAddressFor(
+  street: FieldState<string>,
+  cityStateZip: FieldState<string>,
+): string | null {
   if (street.present && cityStateZip.present) return `${street.value} — ${cityStateZip.value}`;
   if (street.present) return street.value;
   if (cityStateZip.present) return cityStateZip.value;

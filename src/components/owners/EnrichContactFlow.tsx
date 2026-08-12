@@ -93,12 +93,7 @@ export default function EnrichContactFlow({ owner, contact, onEnriched }: Enrich
 
   if (state === "purchasing") {
     return (
-      <div
-        data-testid="enrich-status"
-        aria-live="polite"
-        aria-busy="true"
-        className={PANEL_CLASS}
-      >
+      <div data-testid="enrich-status" aria-live="polite" aria-busy="true" className={PANEL_CLASS}>
         Contacting simulated contact-data vendor…
       </div>
     );

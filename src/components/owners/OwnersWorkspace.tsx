@@ -79,7 +79,9 @@ export default function OwnersWorkspace() {
 
   const parcels = useMemo<Parcel[] | null>(() => {
     if (!raw) return null;
-    return raw.features.map((feature) => toParcel(feature as Feature<Geometry, RawParcelProperties>));
+    return raw.features.map((feature) =>
+      toParcel(feature as Feature<Geometry, RawParcelProperties>),
+    );
   }, [raw]);
 
   const owners = useMemo<OwnerRecordType[]>(
@@ -96,7 +98,9 @@ export default function OwnersWorkspace() {
     return owners.map((owner) => ({ owner, contact: effectiveContact(owner, store) }));
   }, [owners, store]);
 
-  const completeCount = ownersWithContact.filter((o) => o.contact.completeness === "complete").length;
+  const completeCount = ownersWithContact.filter(
+    (o) => o.contact.completeness === "complete",
+  ).length;
   const incompleteCount = ownersWithContact.length - completeCount;
 
   const filtered = useMemo(() => {
@@ -192,7 +196,12 @@ export default function OwnersWorkspace() {
         >
           Incomplete
         </button>
-        <button type="button" data-testid="reset-enrichments" onClick={handleReset} className={BUTTON_CLASS}>
+        <button
+          type="button"
+          data-testid="reset-enrichments"
+          onClick={handleReset}
+          className={BUTTON_CLASS}
+        >
           Reset simulated enrichments
         </button>
         {selectedKey ? (
@@ -225,9 +234,7 @@ export default function OwnersWorkspace() {
                     {owner.parcelCount} parcel{owner.parcelCount === 1 ? "" : "s"} ·{" "}
                     {formatAcres(owner.totalAcres)}
                   </span>{" "}
-                  <span
-                    className="ml-1 rounded-sm border border-current px-1.5 py-0.5 text-[10px] tracking-wide uppercase"
-                  >
+                  <span className="ml-1 rounded-sm border border-current px-1.5 py-0.5 text-[10px] tracking-wide uppercase">
                     {contact.completeness === "complete" ? "Complete" : "Incomplete"}
                   </span>
                 </button>

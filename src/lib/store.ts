@@ -40,7 +40,9 @@ export type EffectiveContact = {
 function isEnrichmentStore(value: unknown): value is EnrichmentStore {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as { version?: unknown; events?: unknown };
-  return candidate.version === 1 && typeof candidate.events === "object" && candidate.events !== null;
+  return (
+    candidate.version === 1 && typeof candidate.events === "object" && candidate.events !== null
+  );
 }
 
 /**

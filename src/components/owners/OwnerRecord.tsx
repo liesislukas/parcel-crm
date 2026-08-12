@@ -71,10 +71,7 @@ function MockMissing() {
   );
 }
 
-function mailingAddressLine(
-  street: FieldState<string>,
-  cityStateZip: FieldState<string>,
-): string {
+function mailingAddressLine(street: FieldState<string>, cityStateZip: FieldState<string>): string {
   if (street.present && cityStateZip.present) return `${street.value} — ${cityStateZip.value}`;
   if (street.present) return street.value;
   if (cityStateZip.present) return cityStateZip.value;
@@ -82,8 +79,10 @@ function mailingAddressLine(
 }
 
 function detailLine(contact: EffectiveContact): string {
-  if (contact.email !== null && contact.phone !== null) return "Email and phone on file (simulated).";
-  if (contact.phone !== null) return "Phone on file (simulated). No email on file — never purchased.";
+  if (contact.email !== null && contact.phone !== null)
+    return "Email and phone on file (simulated).";
+  if (contact.phone !== null)
+    return "Phone on file (simulated). No email on file — never purchased.";
   return "No contact information on file — never purchased.";
 }
 
@@ -185,10 +184,7 @@ export default function OwnerRecord({ owner, store, onEnriched }: OwnerRecordPro
       </section>
 
       {/* 4. Completeness */}
-      <section
-        data-testid="owner-completeness"
-        data-completeness={contact.completeness}
-      >
+      <section data-testid="owner-completeness" data-completeness={contact.completeness}>
         <p className="text-base font-semibold">
           {contact.completeness === "complete" ? "Complete" : "Incomplete"}
         </p>
@@ -237,7 +233,9 @@ export default function OwnerRecord({ owner, store, onEnriched }: OwnerRecordPro
                     {p.acres.present ? formatAcres(p.acres.value) : UNAVAILABLE_LABEL}
                   </td>
                   <td className="py-1">
-                    {p.assessedValue.present ? formatMoney(p.assessedValue.value) : UNAVAILABLE_LABEL}
+                    {p.assessedValue.present
+                      ? formatMoney(p.assessedValue.value)
+                      : UNAVAILABLE_LABEL}
                   </td>
                 </tr>
               ))}
