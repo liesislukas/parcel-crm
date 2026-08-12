@@ -218,6 +218,8 @@ export default function MapWorkspace() {
           setSelectedPins(pins);
           setFocusedPin(null);
         }}
+        editingProject={editingProject}
+        onProjectSaved={(p) => setEditingProject(p)}
       />
 
       <div className="mt-3">

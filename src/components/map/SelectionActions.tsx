@@ -3,8 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { formatAcres, UNAVAILABLE_LABEL, type Parcel } from "@/lib/parcel";
-import { computeProjectStats, contiguityLabel, type ProjectStats } from "@/lib/project";
-import { createProject, STORAGE_UNAVAILABLE_MESSAGE } from "@/lib/projectStore";
+import {
+  computeProjectStats,
+  contiguityLabel,
+  type Project,
+  type ProjectStats,
+} from "@/lib/project";
+import { createProject, replaceProjectPins, STORAGE_UNAVAILABLE_MESSAGE } from "@/lib/projectStore";
 import type { AdjacencyIndex } from "@/lib/adjacency";
 
 type SelectionActionsProps = {
@@ -14,6 +19,8 @@ type SelectionActionsProps = {
   onRemovePin: (pin: string) => void;
   onFocusPin: (pin: string) => void;
   onReplaceSelection: (pins: string[]) => void;
+  editingProject?: Project | null;
+  onProjectSaved?: (project: Project) => void;
 };
 
 const BUTTON_CLASS =
@@ -46,6 +53,28 @@ export default function SelectionActions(props: SelectionActionsProps) {
         text: `Created “${project.name}” — ${project.pins.length} parcels, ${formatAcres(stats.combinedAcres)}, ${contiguityLabel(stats.blocks.length)}.`,
       });
       setName("");
+    } catch {
+      setResult({ kind: "error", text: STORAGE_UNAVAILABLE_MESSAGE });
+    }
+  }
+
+  function handleSave() {
+    const editingProject = props.editingProject;
+    if (!editingProject) return;
+    try {
+      const updated = replaceProjectPins(
+        editingProject.id,
+        stats.members.map((m) => m.pin),
+      );
+      if (updated === null) {
+        setResult({ kind: "error", text: "That project is no longer saved in this browser." });
+        return;
+      }
+      props.onProjectSaved?.(updated);
+      setResult({
+        kind: "ok",
+        text: `Saved “${updated.name}” — ${updated.pins.length} parcels, ${formatAcres(stats.combinedAcres)}, ${contiguityLabel(stats.blocks.length)}.`,
+      });
     } catch {
       setResult({ kind: "error", text: STORAGE_UNAVAILABLE_MESSAGE });
     }
@@ -143,34 +172,53 @@ export default function SelectionActions(props: SelectionActionsProps) {
         ))}
       </ul>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <input
-          data-testid="project-name"
-          value={name}
-          maxLength={80}
-          placeholder="Project name"
-          onChange={(e) => setName(e.target.value)}
-          className="rounded-md border border-black/20 px-2 py-1.5 text-sm dark:border-white/25"
-        />
-        <button
-          type="button"
-          data-testid="create-project"
-          onClick={handleCreate}
-          disabled={name.trim() === "" || stats.members.length === 0}
-          className={BUTTON_CLASS}
-        >
-          Create project
-        </button>
-      </div>
-      {stats.members.length === 0 ? (
-        <p data-testid="create-hint" className="mt-1 text-xs text-black/60 dark:text-white/60">
-          Select at least one parcel on the map to create a project.
-        </p>
-      ) : name.trim() === "" ? (
-        <p data-testid="create-hint" className="mt-1 text-xs text-black/60 dark:text-white/60">
-          Name the project to create it.
-        </p>
-      ) : null}
+      {props.editingProject ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            data-testid="save-project-selection"
+            onClick={handleSave}
+            disabled={stats.members.length === 0}
+            className={BUTTON_CLASS}
+          >
+            {`Save selection to “${props.editingProject.name}”`}
+          </button>
+          <Link href="/" data-testid="stop-editing" className="underline">
+            Stop editing
+          </Link>
+        </div>
+      ) : (
+        <>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <input
+              data-testid="project-name"
+              value={name}
+              maxLength={80}
+              placeholder="Project name"
+              onChange={(e) => setName(e.target.value)}
+              className="rounded-md border border-black/20 px-2 py-1.5 text-sm dark:border-white/25"
+            />
+            <button
+              type="button"
+              data-testid="create-project"
+              onClick={handleCreate}
+              disabled={name.trim() === "" || stats.members.length === 0}
+              className={BUTTON_CLASS}
+            >
+              Create project
+            </button>
+          </div>
+          {stats.members.length === 0 ? (
+            <p data-testid="create-hint" className="mt-1 text-xs text-black/60 dark:text-white/60">
+              Select at least one parcel on the map to create a project.
+            </p>
+          ) : name.trim() === "" ? (
+            <p data-testid="create-hint" className="mt-1 text-xs text-black/60 dark:text-white/60">
+              Name the project to create it.
+            </p>
+          ) : null}
+        </>
+      )}
 
       {result ? (
         <p data-testid="create-project-result" className="mt-2 text-sm">
@@ -178,8 +226,12 @@ export default function SelectionActions(props: SelectionActionsProps) {
           {result.kind === "ok" ? (
             <>
               {" "}
-              <Link href="/projects" data-testid="go-to-projects" className="underline">
-                View it in Projects
+              <Link
+                href={props.editingProject ? `/projects/${props.editingProject.id}` : "/projects"}
+                data-testid="go-to-projects"
+                className="underline"
+              >
+                {props.editingProject ? "View the project" : "View it in Projects"}
               </Link>
             </>
           ) : null}
