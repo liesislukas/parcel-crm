@@ -15,6 +15,7 @@ export type Project = {
   pins?: string[]; // LEGACY, read-only: v1 projects saved before ISSUE-013. Never written.
   createdAt: string; // ISO 8601, new Date().toISOString()
   updatedAt: string; // ISO 8601
+  seeded?: true; // present only on demo-seeded projects; never set by createProject
 };
 
 export type ProjectStats = {

@@ -3,6 +3,7 @@ import type { Owner } from "@/lib/owners";
 import { countsFrom } from "@/lib/campaigns/model";
 import {
   advanceAll,
+  clearToEmpty,
   createCampaigns,
   getSnapshot,
   messageStateOf,
@@ -274,6 +275,27 @@ describe("ownerHistory", () => {
     for (let i = 1; i < history.length; i++) {
       expect(history[i].effectiveAt >= history[i - 1].effectiveAt).toBe(true);
     }
+  });
+});
+
+describe("clearToEmpty", () => {
+  beforeEach(() => {
+    resetAll();
+  });
+
+  it("leaves a present, explicitly empty envelope after a campaign existed", () => {
+    createAllThreeChannels();
+    expect(getSnapshot().campaigns.length).toBeGreaterThan(0);
+
+    clearToEmpty();
+
+    expect(getSnapshot()).toEqual({
+      version: 1,
+      campaigns: [],
+      messages: [],
+      events: [],
+      shortLinks: [],
+    });
   });
 });
 

@@ -168,6 +168,12 @@ export function resetAll(): void {
   for (const listener of listeners) listener();
 }
 
+/** Like `resetAll`, but leaves an explicit empty envelope in storage instead of removing the key. */
+export function clearToEmpty(): void {
+  ownerDirectoryCache.clear();
+  commit({ version: 1, campaigns: [], messages: [], events: [], shortLinks: [] });
+}
+
 export function readProjects(): {
   id: string;
   name: string;

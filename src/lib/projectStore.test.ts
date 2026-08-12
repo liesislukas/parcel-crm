@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import type { Project } from "@/lib/project";
 import {
   PROJECTS_STORAGE_KEY,
+  addProjectsIfAbsent,
+  clearProjects,
   createProject,
   deleteProject,
   findProject,
   loadProjects,
   replaceProjectParcelIds,
   resolveProjectParcelIds,
+  seedProjects,
 } from "@/lib/projectStore";
 
 /**
@@ -141,5 +145,79 @@ describe("projectStore", () => {
 
     expect(loadProjects()).toEqual([]);
     expect(globalThis.localStorage.getItem(PROJECTS_STORAGE_KEY)).toBe("not json{{{");
+  });
+});
+
+const seedFixtures: Project[] = [
+  {
+    id: "seed-a",
+    name: "Seed A",
+    parcelIds: ["1", "2"],
+    createdAt: "2026-08-01T09:00:00.000Z",
+    updatedAt: "2026-08-01T09:00:00.000Z",
+    seeded: true,
+  },
+  {
+    id: "seed-b",
+    name: "Seed B",
+    parcelIds: ["3"],
+    createdAt: "2026-08-06T09:00:00.000Z",
+    updatedAt: "2026-08-06T09:00:00.000Z",
+    seeded: true,
+  },
+];
+
+describe("seedProjects", () => {
+  it("returns true and stores both projects when the key is absent", () => {
+    expect(seedProjects(seedFixtures)).toBe(true);
+    expect(loadProjects()).toEqual(seedFixtures);
+  });
+
+  it("called a second time returns false and leaves the stored value byte-identical", () => {
+    seedProjects(seedFixtures);
+    const before = globalThis.localStorage.getItem(PROJECTS_STORAGE_KEY);
+
+    expect(seedProjects(seedFixtures)).toBe(false);
+    expect(globalThis.localStorage.getItem(PROJECTS_STORAGE_KEY)).toBe(before);
+  });
+
+  it("when a user project was created first, returns false and the user project is still the only entry", () => {
+    createProject("User's own project", ["9"]);
+
+    expect(seedProjects(seedFixtures)).toBe(false);
+    const stored = loadProjects();
+    expect(stored).toHaveLength(1);
+    expect(stored[0].name).toBe("User's own project");
+  });
+});
+
+describe("clearProjects", () => {
+  it("leaves loadProjects() empty and writes a present, empty v2 envelope", () => {
+    createProject("Something", ["1"]);
+
+    clearProjects();
+
+    expect(loadProjects()).toEqual([]);
+    expect(globalThis.localStorage.getItem(PROJECTS_STORAGE_KEY)).toBe(
+      '{"version":2,"projects":[]}',
+    );
+  });
+});
+
+describe("addProjectsIfAbsent", () => {
+  it("adds only the missing ids and returns the count", () => {
+    seedProjects([seedFixtures[0]]);
+
+    const added = addProjectsIfAbsent(seedFixtures);
+
+    expect(added).toBe(1);
+    expect(loadProjects().map((p) => p.id)).toEqual(["seed-a", "seed-b"]);
+  });
+
+  it("adds nothing and returns 0 when every id is already present", () => {
+    seedProjects(seedFixtures);
+
+    expect(addProjectsIfAbsent(seedFixtures)).toBe(0);
+    expect(loadProjects()).toHaveLength(2);
   });
 });

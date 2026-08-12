@@ -134,6 +134,43 @@ export function deleteProject(id: string): void {
 }
 
 /**
+ * Installs the demo-seed projects only when the storage key is entirely absent — never when
+ * it already holds a value, seeded or not, empty or not. That is what makes the seed pass
+ * idempotent and never clobber a project a user (or a prior seed pass) already created.
+ * Returns `false` and writes nothing when `localStorage` is unavailable or the key exists;
+ * otherwise writes the v2 envelope and returns `true`.
+ */
+export function seedProjects(projects: readonly Project[]): boolean {
+  if (typeof globalThis.localStorage === "undefined") return false;
+  if (globalThis.localStorage.getItem(PROJECTS_STORAGE_KEY) !== null) return false;
+  writeEnvelope([...projects]);
+  return true;
+}
+
+/**
+ * Resets to a present, explicitly EMPTY envelope — it writes `{ version: 2, projects: [] }`,
+ * it never `removeItem`s the key. An absent key means "never seeded"; a present empty
+ * envelope means "deliberately cleared", which is what keeps a reload from re-seeding.
+ */
+export function clearProjects(): void {
+  writeEnvelope([]);
+}
+
+/**
+ * Adds only the projects whose `id` is not already present, in the input's order, and never
+ * mutates an existing entry. Returns how many were added. Used by the demo-data restore
+ * control: it can re-add the seeded rows without touching anything a user made.
+ */
+export function addProjectsIfAbsent(projects: readonly Project[]): number {
+  const current = readEnvelope();
+  const existingIds = new Set(current.map((p) => p.id));
+  const toAdd = projects.filter((p) => !existingIds.has(p.id));
+  if (toAdd.length === 0) return 0;
+  writeEnvelope([...current, ...toAdd]);
+  return toAdd.length;
+}
+
+/**
  * The single migration point between v1 projects (saved by PIN) and the id-keyed model.
  *
  * A v1 pin that matches several records contributes ALL of them: a v1 project could not
