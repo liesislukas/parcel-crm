@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { futureSections, sections } from "@/lib/nav";
+import { futureSections, referenceSections, sections } from "@/lib/nav";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -27,6 +27,33 @@ export function Sidebar() {
         </h2>
         <ul className="flex flex-col gap-0.5">
           {sections.map((section) => {
+            const isActive = pathname === section.href;
+            return (
+              <li key={section.slug}>
+                <Link
+                  href={section.href}
+                  aria-current={isActive ? "page" : undefined}
+                  data-testid={`nav-${section.slug}`}
+                  className={`block rounded-md px-2 py-1.5 text-sm transition-colors ${
+                    isActive
+                      ? "bg-black/[.07] font-medium text-black dark:bg-white/[.12] dark:text-white"
+                      : "text-black/75 hover:bg-black/[.04] dark:text-white/75 dark:hover:bg-white/[.06]"
+                  }`}
+                >
+                  {section.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <div>
+        <h2 className="mb-2 px-2 text-[11px] font-semibold tracking-widest text-black/45 uppercase dark:text-white/45">
+          Reference
+        </h2>
+        <ul className="flex flex-col gap-0.5">
+          {referenceSections.map((section) => {
             const isActive = pathname === section.href;
             return (
               <li key={section.slug}>

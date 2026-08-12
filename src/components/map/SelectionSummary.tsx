@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import type { ParcelMeta } from "@/lib/parcelData";
 
 type SelectionSummaryProps = {
@@ -47,7 +49,10 @@ export default function SelectionSummary({ count, meta, onShowIncomplete }: Sele
         {notLoaded.toLocaleString("en-US")} county parcels are not loaded in this build.{" "}
         <a href={meta.sourceLayerUrl} target="_blank" rel="noreferrer" className="underline">
           View source layer
-        </a>
+        </a>{" "}
+        <Link href="/sources" data-testid="banner-sources-link" className="underline">
+          All data sources and gaps
+        </Link>
       </p>
       <button
         type="button"
