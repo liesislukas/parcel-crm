@@ -1,30 +1,19 @@
 import { describe, expect, it } from "vitest";
-import type { Geometry } from "geojson";
 import type { Parcel } from "@/lib/parcel";
 import type { AdjacencyIndex } from "@/lib/adjacency";
 import { computeProjectStats, contiguityLabel } from "@/lib/project";
 
-function square(x: number, y: number): Geometry {
-  return {
-    type: "Polygon",
-    coordinates: [
-      [
-        [x, y],
-        [x + 1, y],
-        [x + 1, y + 1],
-        [x, y + 1],
-        [x, y],
-      ],
-    ],
-  };
-}
-
+/**
+ * Members are keyed by id (`String(OBJECTID)`); `footprint` is the precomputed FNV-1a32 hex
+ * of the published coordinate array, so two records filed against one outline share a string.
+ */
 function makeParcel(
-  pin: string,
-  overrides: Partial<Pick<Parcel, "geometry" | "acres" | "owner">> = {},
+  id: string,
+  overrides: Partial<Pick<Parcel, "footprint" | "acres" | "owner" | "centroid">> = {},
 ): Parcel {
   return {
-    pin,
+    id,
+    pin: `PIN-${id}`,
     owner: overrides.owner ?? { present: false },
     taxBillName: { present: false },
     assessedValue: { present: false },
@@ -32,23 +21,24 @@ function makeParcel(
     mailingStreet: { present: false },
     mailingCityStateZip: { present: false },
     acres: overrides.acres ?? { present: true, value: 1 },
-    geometry: overrides.geometry ?? square(Number(pin.length), 0),
+    centroid: overrides.centroid === undefined ? { lng: -90.5, lat: 41.5 } : overrides.centroid,
+    footprint: overrides.footprint === undefined ? `fp-${id}` : overrides.footprint,
   };
 }
 
 describe("computeProjectStats", () => {
   it("sums three ordinary parcels the same way in both sums", () => {
-    const a = makeParcel("A", { geometry: square(0, 0), acres: { present: true, value: 1 } });
-    const b = makeParcel("B", { geometry: square(10, 0), acres: { present: true, value: 2 } });
-    const c = makeParcel("C", { geometry: square(20, 0), acres: { present: true, value: 3 } });
-    const parcelsByPin = new Map([
+    const a = makeParcel("A", { acres: { present: true, value: 1 } });
+    const b = makeParcel("B", { acres: { present: true, value: 2 } });
+    const c = makeParcel("C", { acres: { present: true, value: 3 } });
+    const parcelsById = new Map([
       ["A", a],
       ["B", b],
       ["C", c],
     ]);
     const index: AdjacencyIndex = new Map();
 
-    const stats = computeProjectStats(["A", "B", "C"], parcelsByPin, index);
+    const stats = computeProjectStats(["A", "B", "C"], parcelsById, index);
 
     expect(stats.combinedAcres).toBe(6);
     expect(stats.combinedAcres).toBe(stats.plainSumAcres);
@@ -56,16 +46,15 @@ describe("computeProjectStats", () => {
   });
 
   it("counts a duplicate footprint's acreage once in combinedAcres but twice in plainSumAcres", () => {
-    const geometry = square(0, 0);
-    const a = makeParcel("A", { geometry, acres: { present: true, value: 10.457 } });
-    const b = makeParcel("B", { geometry, acres: { present: true, value: 10.457 } });
-    const parcelsByPin = new Map([
+    const a = makeParcel("A", { footprint: "9c4e21af", acres: { present: true, value: 10.457 } });
+    const b = makeParcel("B", { footprint: "9c4e21af", acres: { present: true, value: 10.457 } });
+    const parcelsById = new Map([
       ["A", a],
       ["B", b],
     ]);
     const index: AdjacencyIndex = new Map();
 
-    const stats = computeProjectStats(["A", "B"], parcelsByPin, index);
+    const stats = computeProjectStats(["A", "B"], parcelsById, index);
 
     expect(stats.combinedAcres).toBeCloseTo(10.457, 6);
     expect(stats.plainSumAcres).toBeCloseTo(20.914, 6);
@@ -75,31 +64,50 @@ describe("computeProjectStats", () => {
 
   it("excludes a member with absent acreage from both sums", () => {
     const a = makeParcel("A", { acres: { present: false } });
-    const parcelsByPin = new Map([["A", a]]);
+    const parcelsById = new Map([["A", a]]);
     const index: AdjacencyIndex = new Map();
 
-    const stats = computeProjectStats(["A"], parcelsByPin, index);
+    const stats = computeProjectStats(["A"], parcelsById, index);
 
     expect(stats.combinedAcres).toBe(0);
     expect(stats.plainSumAcres).toBe(0);
     expect(stats.acreageMissingCount).toBe(1);
   });
 
-  it("puts a pin absent from parcelsByPin into missingPins, not members", () => {
-    const parcelsByPin = new Map<string, Parcel>();
+  it("counts an outline-less record in acreageMissingCount and in no footprint group", () => {
+    // PINs 1710408032 and 1710408043 publish an empty ring: no footprint, GIS_acres_num 0.
+    // Two of them must not collapse into one shared `null` dedup bucket.
+    const a = makeParcel("A", { footprint: null, centroid: null, acres: { present: false } });
+    const b = makeParcel("B", { footprint: null, centroid: null, acres: { present: false } });
+    const parcelsById = new Map([
+      ["A", a],
+      ["B", b],
+    ]);
     const index: AdjacencyIndex = new Map();
 
-    const stats = computeProjectStats(["Z"], parcelsByPin, index);
+    const stats = computeProjectStats(["A", "B"], parcelsById, index);
 
-    expect(stats.missingPins).toEqual(["Z"]);
+    expect(stats.acreageMissingCount).toBe(2);
+    expect(stats.duplicateFootprintRecords).toBe(0);
+    expect(stats.duplicateFootprintGroups).toBe(0);
+    expect(stats.combinedAcres).toBe(0);
+  });
+
+  it("puts an id absent from parcelsById into missingIds, not members", () => {
+    const parcelsById = new Map<string, Parcel>();
+    const index: AdjacencyIndex = new Map();
+
+    const stats = computeProjectStats(["Z"], parcelsById, index);
+
+    expect(stats.missingIds).toEqual(["Z"]);
     expect(stats.members).toEqual([]);
   });
 
   it("reports 2 blocks for two adjacent members plus one detached member", () => {
-    const a = makeParcel("A", { geometry: square(0, 0) });
-    const b = makeParcel("B", { geometry: square(1, 0) });
-    const c = makeParcel("C", { geometry: square(50, 50) });
-    const parcelsByPin = new Map([
+    const a = makeParcel("A");
+    const b = makeParcel("B");
+    const c = makeParcel("C");
+    const parcelsById = new Map([
       ["A", a],
       ["B", b],
       ["C", c],
@@ -109,7 +117,7 @@ describe("computeProjectStats", () => {
       ["B", new Set(["A"])],
     ]);
 
-    const stats = computeProjectStats(["A", "B", "C"], parcelsByPin, index);
+    const stats = computeProjectStats(["A", "B", "C"], parcelsById, index);
 
     expect(stats.blocks.length).toBe(2);
   });
@@ -119,7 +127,7 @@ describe("computeProjectStats", () => {
     const b = makeParcel("B", { owner: { present: true, value: "B" } });
     const c = makeParcel("C", { owner: { present: true, value: "A" } });
     const d = makeParcel("D", { owner: { present: false } });
-    const parcelsByPin = new Map([
+    const parcelsById = new Map([
       ["A", a],
       ["B", b],
       ["C", c],
@@ -127,7 +135,7 @@ describe("computeProjectStats", () => {
     ]);
     const index: AdjacencyIndex = new Map();
 
-    const stats = computeProjectStats(["A", "B", "C", "D"], parcelsByPin, index);
+    const stats = computeProjectStats(["A", "B", "C", "D"], parcelsById, index);
 
     expect(stats.ownerCount).toBe(2);
     expect(stats.ownersMissingCount).toBe(1);

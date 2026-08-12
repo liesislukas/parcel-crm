@@ -1,30 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { Feature, Geometry } from "geojson";
 import {
   formatAcres,
   formatMoney,
   numberField,
   textField,
-  toParcel,
-  type RawParcelProperties,
+  toParcelFromRow,
+  type ParcelAttrRow,
 } from "./parcel";
-
-const SQUARE: Geometry = {
-  type: "Polygon",
-  coordinates: [
-    [
-      [0, 0],
-      [1, 0],
-      [1, 1],
-      [0, 1],
-      [0, 0],
-    ],
-  ],
-};
-
-function feature(properties: RawParcelProperties): Feature<Geometry, RawParcelProperties> {
-  return { type: "Feature", geometry: SQUARE, properties };
-}
 
 describe("textField", () => {
   it("treats null, undefined, empty and whitespace-only as missing", () => {
@@ -69,22 +51,26 @@ describe("numberField", () => {
   });
 });
 
-describe("toParcel", () => {
+describe("toParcelFromRow", () => {
   it("maps the real ROCK ISLAND ARSENAL record: EAV 0 present, mailing address absent", () => {
-    // Verbatim from public/data/rock-island-parcels.json, PIN 0725200001.
-    const parcel = toParcel(
-      feature({
-        PIN: "0725200001",
-        owner1_name: "ROCK ISLAND ARSENAL",
-        taxbill_name: "ROCK ISLAND ARSENAL",
-        EAV: 0,
-        EMV: 0,
-        taxbill_addr: "",
-        taxbill_csz: "",
-        GIS_acres_num: 975.6855737299176,
-      }),
-    );
+    // Verbatim from public/data/rock-island-parcels.attrs.json, PIN 0725200001.
+    const row: ParcelAttrRow = [
+      12345,
+      "0725200001",
+      "ROCK ISLAND ARSENAL",
+      "ROCK ISLAND ARSENAL",
+      0,
+      0,
+      "",
+      "",
+      975.6855737299176,
+      -90.55,
+      41.51,
+      "1f2e3d4c",
+    ];
+    const parcel = toParcelFromRow(row);
 
+    expect(parcel.id).toBe("12345");
     expect(parcel.pin).toBe("0725200001");
     expect(parcel.owner).toEqual({ present: true, value: "ROCK ISLAND ARSENAL" });
     expect(parcel.assessedValue.present).toBe(true);
@@ -93,22 +79,12 @@ describe("toParcel", () => {
     expect(parcel.mailingStreet.present).toBe(false);
     expect(parcel.mailingCityStateZip.present).toBe(false);
     expect(parcel.acres).toEqual({ present: true, value: 975.6855737299176 });
-    expect(parcel.geometry).toBe(SQUARE);
+    expect(parcel.centroid).toEqual({ lng: -90.55, lat: 41.51 });
+    expect(parcel.footprint).toBe("1f2e3d4c");
   });
 
   it("falls back to the literal string UNKNOWN when every attribute is null", () => {
-    const parcel = toParcel(
-      feature({
-        PIN: null,
-        owner1_name: null,
-        taxbill_name: null,
-        EAV: null,
-        EMV: null,
-        taxbill_addr: null,
-        taxbill_csz: null,
-        GIS_acres_num: null,
-      }),
-    );
+    const parcel = toParcelFromRow([1, null, null, null, null, null, null, null, null, 0, 0, "0"]);
 
     expect(parcel.pin).toBe("UNKNOWN");
     expect(parcel.owner.present).toBe(false);
@@ -120,19 +96,28 @@ describe("toParcel", () => {
     expect(parcel.acres.present).toBe(false);
   });
 
+  it("treats a blank PIN as UNKNOWN rather than an empty parcel identifier", () => {
+    const parcel = toParcelFromRow([2, " ", "SOME LLC", null, null, null, null, null, null, 0, 0, "0"]);
+
+    expect(parcel.pin).toBe("UNKNOWN");
+    expect(parcel.owner).toEqual({ present: true, value: "SOME LLC" });
+  });
+
   it("passes a literal UNKNOWN PIN through rather than synthesising one", () => {
-    const parcel = toParcel(
-      feature({
-        PIN: "UNKNOWN",
-        owner1_name: " ",
-        taxbill_name: "SOME LLC",
-        EAV: 12345,
-        EMV: 40000,
-        taxbill_addr: "UNIT 24515 729R",
-        taxbill_csz: "CORDOVA IL 612420006",
-        GIS_acres_num: 0,
-      }),
-    );
+    const parcel = toParcelFromRow([
+      3,
+      "UNKNOWN",
+      " ",
+      "SOME LLC",
+      12345,
+      40000,
+      "UNIT 24515 729R",
+      "CORDOVA IL 612420006",
+      0,
+      -90.3,
+      41.7,
+      "deadbeef",
+    ]);
 
     expect(parcel.pin).toBe("UNKNOWN");
     expect(parcel.owner.present).toBe(false);
@@ -146,6 +131,32 @@ describe("toParcel", () => {
     });
     // A polygon of zero acres is impossible, so 0 acres is missing.
     expect(parcel.acres).toEqual({ present: false });
+  });
+
+  it("keeps the two empty-ring records as records, with no centroid and no footprint", () => {
+    // PIN 1710408032 publishes {"type":"Polygon","coordinates":[[]]} at source: real owner,
+    // real EAV, no outline. It loads into the CRM and is never given an invented geometry.
+    const parcel = toParcelFromRow([
+      47305,
+      "1710408032",
+      "PAROLLIE LLC SERIES 4",
+      "PAROLLIE LLC SERIES 4",
+      68638,
+      205935,
+      "504 19TH AVE",
+      "MOLINE IL 61265",
+      0,
+      null,
+      null,
+      null,
+    ]);
+
+    expect(parcel.id).toBe("47305");
+    expect(parcel.pin).toBe("1710408032");
+    expect(parcel.owner).toEqual({ present: true, value: "PAROLLIE LLC SERIES 4" });
+    expect(parcel.assessedValue).toEqual({ present: true, value: 68638 });
+    expect(parcel.centroid).toBeNull();
+    expect(parcel.footprint).toBeNull();
   });
 });
 

@@ -1,4 +1,4 @@
-import type { Feature, Geometry } from "geojson";
+import type { LngLat } from "@/lib/geo";
 
 /**
  * A field is either present with a value, or absent. There is no third state and no
@@ -38,20 +38,38 @@ export function numberField(raw: unknown, opts?: { zeroIsMissing?: boolean }): F
   return { present: true, value: n };
 }
 
-/** The eight source fields, spelled exactly as the county service spells them. */
-export type RawParcelProperties = {
-  PIN: unknown;
-  owner1_name: unknown;
-  taxbill_name: unknown;
-  EAV: unknown;
-  EMV: unknown;
-  taxbill_addr: unknown;
-  taxbill_csz: unknown;
-  GIS_acres_num: unknown;
-};
+/**
+ * One row of `public/data/rock-island-parcels.attrs.json`, in the file's column order:
+ * `["id","PIN","owner1_name","taxbill_name","EAV","EMV","taxbill_addr","taxbill_csz",
+ * "GIS_acres_num","lng","lat","fp"]`. Source values stay `unknown` because the file is a
+ * verbatim copy of what the county published.
+ */
+export type ParcelAttrRow = readonly [
+  number, // 0  id — OBJECTID
+  unknown, // 1  PIN
+  unknown, // 2  owner1_name
+  unknown, // 3  taxbill_name
+  unknown, // 4  EAV
+  unknown, // 5  EMV
+  unknown, // 6  taxbill_addr
+  unknown, // 7  taxbill_csz
+  unknown, // 8  GIS_acres_num
+  number | null, // 9  lng — null when the record has no mappable geometry
+  number | null, // 10 lat
+  string | null, // 11 fp — FNV-1a32 hex of the coordinate array
+];
 
+/**
+ * `PIN` is NOT unique across Rock Island County: the 65,955 records carry only 65,813 distinct
+ * PIN values, and 29 values repeat — `"USA"` alone appears 87 times, `"CITY"` 10, `"RAILROAD"` 9,
+ * plus 23 ordinary-looking numeric PINs filed twice. Keying selection, lookup or project
+ * membership on PIN would collapse 142 real records and highlight all 87 "USA" parcels on one
+ * click. Identity is therefore `id` = `String(OBJECTID)`, which is distinct on all 65,955 records;
+ * `pin` is a display and export field only. Do not re-key this on PIN.
+ */
 export type Parcel = {
-  pin: string; // "UNKNOWN" when the source says so; never synthesised
+  id: string; // String(OBJECTID) — unique, the identity
+  pin: string; // verbatim PIN; "UNKNOWN" where the source says so, never synthesised
   owner: FieldState<string>; // from owner1_name
   taxBillName: FieldState<string>; // from taxbill_name
   assessedValue: FieldState<number>; // from EAV
@@ -59,26 +77,28 @@ export type Parcel = {
   mailingStreet: FieldState<string>; // from taxbill_addr
   mailingCityStateZip: FieldState<string>; // from taxbill_csz — ONE combined string
   acres: FieldState<number>; // from GIS_acres_num
-  geometry: Geometry;
+  centroid: LngLat | null; // null for the 2 records that publish an empty polygon ring
+  footprint: string | null; // null for the same 2
 };
 
 export const UNAVAILABLE_LABEL = "Not available";
 export const TAX_EXEMPT_NOTE = "Source reports EAV 0 — commonly a tax-exempt parcel.";
 
-export function toParcel(feature: Feature<Geometry, RawParcelProperties>): Parcel {
-  const p = feature.properties;
-  const pin = textField(p.PIN);
+export function toParcelFromRow(row: ParcelAttrRow): Parcel {
+  const pin = textField(row[1]);
   return {
+    id: String(row[0]),
     pin: pin.present ? pin.value : "UNKNOWN",
-    owner: textField(p.owner1_name),
-    taxBillName: textField(p.taxbill_name),
+    owner: textField(row[2]),
+    taxBillName: textField(row[3]),
     // zeroIsMissing deliberately NOT set: EAV/EMV of 0 is a real, honest value.
-    assessedValue: numberField(p.EAV),
-    marketValue: numberField(p.EMV),
-    mailingStreet: textField(p.taxbill_addr),
-    mailingCityStateZip: textField(p.taxbill_csz),
-    acres: numberField(p.GIS_acres_num, { zeroIsMissing: true }),
-    geometry: feature.geometry,
+    assessedValue: numberField(row[4]),
+    marketValue: numberField(row[5]),
+    mailingStreet: textField(row[6]),
+    mailingCityStateZip: textField(row[7]),
+    acres: numberField(row[8], { zeroIsMissing: true }),
+    centroid: row[9] === null || row[10] === null ? null : { lng: row[9], lat: row[10] },
+    footprint: row[11],
   };
 }
 

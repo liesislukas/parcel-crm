@@ -1,23 +1,25 @@
-import type { Geometry } from "geojson";
 import type { Parcel } from "@/lib/parcel";
 import { connectedBlocks, type AdjacencyIndex } from "@/lib/adjacency";
 
 /**
- * A saved project: a named, persisted group of parcel PINs. Statistics (acreage, blocks,
+ * A saved project: a named, persisted group of parcel ids. Statistics (acreage, blocks,
  * owner count) are never stored — they are recomputed from the source data every time, so
  * they can never drift from the parcels the project actually points at.
+ *
+ * Members are ids (`String(OBJECTID)`), not PINs, because PIN is not unique county-wide.
  */
 export type Project = {
   id: string; // crypto.randomUUID()
   name: string; // trimmed, 1..80 chars
-  pins: string[]; // member PINs, insertion order, deduplicated
+  parcelIds: string[]; // member parcel ids, insertion order, deduplicated
+  pins?: string[]; // LEGACY, read-only: v1 projects saved before ISSUE-013. Never written.
   createdAt: string; // ISO 8601, new Date().toISOString()
   updatedAt: string; // ISO 8601
 };
 
 export type ProjectStats = {
-  members: Parcel[]; // resolved members, in `pins` order
-  missingPins: string[]; // pins not in the loaded subset
+  members: Parcel[]; // resolved members, in `parcelIds` order
+  missingIds: string[]; // ids not present in the loaded county records
   combinedAcres: number; // sum over DISTINCT footprints, present acreage only
   plainSumAcres: number; // sum over EVERY member with present acreage
   duplicateFootprintRecords: number; // members skipped as repeat footprints
@@ -29,38 +31,31 @@ export type ProjectStats = {
 };
 
 /**
- * Rock Island County files condominium and PUD units against the whole parcel outline: 303
- * of the loaded 6,026 parcels sit in 18 duplicate-footprint groups, the largest 107 records
+ * Rock Island County files condominium and PUD units against the whole parcel outline: 2,079
+ * of the county's 65,955 records sit in 403 duplicate-footprint groups, the largest 107 records
  * filed against one 10.4570-ac outline. Summing every record naively reports 1,118.90 ac for
  * a 10.46-ac site. `computeProjectStats` therefore sums acreage once per DISTINCT outline
  * (`combinedAcres`) and also reports the plain all-records sum (`plainSumAcres`) so the two
  * can be shown side by side whenever they differ — nothing hidden, nothing invented.
  *
- * `footprintKey` is exact equality of the published coordinate array: the 6,026 features
- * occupy 5,741 distinct footprints, and the duplicates are byte-identical.
+ * `Parcel.footprint` is exact equality of the published coordinate array, hashed at extract
+ * time by `scripts/fetch-parcels.mjs` and verified collision-free: the 65,955 records occupy
+ * 64,279 distinct footprints, and the duplicates are byte-identical.
  */
-export function footprintKey(geometry: Geometry): string {
-  // Every geometry type in the loaded subset is Polygon or MultiPolygon, both of which carry
-  // `coordinates`; the `in` check only exists to satisfy `Geometry` including
-  // `GeometryCollection`, which this subset never contains.
-  if ("coordinates" in geometry) return JSON.stringify(geometry.coordinates);
-  return JSON.stringify(geometry);
-}
-
 export function computeProjectStats(
-  pins: readonly string[],
-  parcelsByPin: ReadonlyMap<string, Parcel>,
+  parcelIds: readonly string[],
+  parcelsById: ReadonlyMap<string, Parcel>,
   index: AdjacencyIndex,
 ): ProjectStats {
   const members: Parcel[] = [];
-  const missingPins: string[] = [];
+  const missingIds: string[] = [];
 
-  for (const pin of pins) {
-    const parcel = parcelsByPin.get(pin);
+  for (const id of parcelIds) {
+    const parcel = parcelsById.get(id);
     if (parcel) {
       members.push(parcel);
     } else {
-      missingPins.push(pin);
+      missingIds.push(id);
     }
   }
 
@@ -72,7 +67,17 @@ export function computeProjectStats(
   const footprintCounts = new Map<string, number>();
 
   for (const member of members) {
-    const key = footprintKey(member.geometry);
+    const key = member.footprint;
+
+    // The two records that publish an empty ring have no outline to compare, so they never
+    // join a footprint group — `null` must not become a shared dedup bucket. Both carry
+    // GIS_acres_num 0, so they land in acreageMissingCount below.
+    if (key === null) {
+      if (!member.acres.present) acreageMissingCount += 1;
+      else plainSumAcres += member.acres.value;
+      continue;
+    }
+
     footprintCounts.set(key, (footprintCounts.get(key) ?? 0) + 1);
 
     if (!member.acres.present) {
@@ -106,13 +111,13 @@ export function computeProjectStats(
   }
 
   const blocks = connectedBlocks(
-    members.map((m) => m.pin),
+    members.map((m) => m.id),
     index,
   );
 
   return {
     members,
-    missingPins,
+    missingIds,
     combinedAcres,
     plainSumAcres,
     duplicateFootprintRecords,
