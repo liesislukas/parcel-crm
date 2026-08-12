@@ -31,7 +31,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <div className="flex min-w-0 flex-1 flex-col">
             <main className="flex-1 p-6 sm:p-10">{children}</main>
             <footer className="border-t border-black/10 px-6 py-3 font-mono text-[11px] text-black/45 sm:px-10 dark:border-white/15 dark:text-white/45">
-              Deployed shell — ISSUE-002
+              parcel-crm
               {branch ? ` · ${branch}` : ""}
               {commit ? ` · ${commit}` : " · local"}
             </footer>
