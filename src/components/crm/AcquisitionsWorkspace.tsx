@@ -21,7 +21,7 @@ import {
 import { useAcquisitionStore } from "@/lib/crm/useAcquisitionStore";
 
 const PROVENANCE_NOTE =
-  "Team roster, tasks, interest levels, asking prices and acquisition stages in this section are invented for this demo — this build has no authentication, no user accounts and no CRM back end. Owner names, parcel identifiers, acreages, assessed values and mailing addresses come from the Rock Island County GIS parcel layer, retrieved 2026-08-11.";
+  "Team roster, tasks, interest levels, asking prices and acquisition stages in this section are invented for this demo — this build has no authentication, no user accounts and no CRM back end. Owner names, parcel identifiers, acreages, assessed values and mailing addresses come from the Rock Island County GIS parcel layer, retrieved 2026-08-12.";
 
 const RESET_CONFIRM =
   "Discard every acquisition record, task and history entry in this browser and restore the seeded demo data?";

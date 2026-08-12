@@ -13,7 +13,7 @@ import { TEAM_MEMBERS, TEAM_ROSTER_NOTE, memberName } from "@/lib/crm/team";
 import { useAcquisitionStore } from "@/lib/crm/useAcquisitionStore";
 
 const PROVENANCE_NOTE =
-  "Team roster, tasks, interest levels, asking prices and acquisition stages in this section are invented for this demo — this build has no authentication, no user accounts and no CRM back end. Owner names, parcel identifiers, acreages, assessed values and mailing addresses come from the Rock Island County GIS parcel layer, retrieved 2026-08-11.";
+  "Team roster, tasks, interest levels, asking prices and acquisition stages in this section are invented for this demo — this build has no authentication, no user accounts and no CRM back end. Owner names, parcel identifiers, acreages, assessed values and mailing addresses come from the Rock Island County GIS parcel layer, retrieved 2026-08-12.";
 
 const CONTROL_CLASS =
   "rounded-md border border-black/20 bg-transparent px-2 py-1.5 text-sm dark:border-white/25";

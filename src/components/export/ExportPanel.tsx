@@ -127,7 +127,7 @@ export default function ExportPanel() {
       >
         <p>
           <strong>What the columns mean.</strong> Columns with no suffix come from the Rock Island
-          County GIS parcel layer (retrieved 2026-08-11) and are exported verbatim — never rounded,
+          County GIS parcel layer (retrieved 2026-08-12) and are exported verbatim — never rounded,
           reformatted, or defaulted. Columns ending <code>_mock</code> are simulated by this
           application: they are not real contact details, and no email, letter, or SMS was ever
           sent. Columns ending <code>_crm</code> are records you created in this CRM. An empty cell

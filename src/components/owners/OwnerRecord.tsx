@@ -15,7 +15,7 @@ const PARCEL_ROW_CAP = 25;
 
 const COUNTY_SOURCE_CAPTION =
   "Source: Rock Island County GIS parcel layer (owner1_name, taxbill_name, taxbill_addr, " +
-  "taxbill_csz), retrieved 2026-08-11.";
+  "taxbill_csz), retrieved 2026-08-12.";
 
 const METHODOLOGY_NOTE =
   "Email and phone on this screen are generated, not real. They are derived deterministically " +
