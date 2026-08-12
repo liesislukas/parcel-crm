@@ -14,6 +14,7 @@ type ParcelMapProps = {
   onParcelClick: (pin: string) => void;
   onRectDrawn: (a: LngLat, b: LngLat) => void;
   flyTo: { center: LngLat; zoom: number; nonce: number } | null;
+  fitTo: { bbox: [number, number, number, number]; nonce: number } | null;
 };
 
 const EMPTY_COLLECTION: FeatureCollection = { type: "FeatureCollection", features: [] };
@@ -72,6 +73,7 @@ export default function ParcelMap(props: ParcelMapProps) {
   const onParcelClickRef = useRef(props.onParcelClick);
   const onRectDrawnRef = useRef(props.onRectDrawn);
   const flyToRef = useRef(props.flyTo);
+  const fitToRef = useRef(props.fitTo);
 
   // Drag bookkeeping for the rubber-band rectangle.
   const dragStartRef = useRef<LngLat | null>(null);
@@ -87,6 +89,7 @@ export default function ParcelMap(props: ParcelMapProps) {
     onParcelClickRef.current = props.onParcelClick;
     onRectDrawnRef.current = props.onRectDrawn;
     flyToRef.current = props.flyTo;
+    fitToRef.current = props.fitTo;
   });
 
   // Map creation — exactly once. Never recreated when props change.
@@ -315,6 +318,23 @@ export default function ParcelMap(props: ParcelMapProps) {
     if (!map || !target) return;
     map.flyTo({ center: [target.center.lng, target.center.lat], zoom: target.zoom });
   }, [flyNonce]);
+
+  // Frames a reopened project's members. Modelled exactly on the `flyTo` effect above,
+  // including the nonce-so-it-re-fires reason.
+  const fitNonce = props.fitTo?.nonce;
+  useEffect(() => {
+    const map = mapRef.current;
+    const target = fitToRef.current;
+    if (!map || !target) return;
+    const bbox = target.bbox;
+    map.fitBounds(
+      [
+        [bbox[0], bbox[1]],
+        [bbox[2], bbox[3]],
+      ],
+      { padding: 48, maxZoom: 17, animate: false },
+    );
+  }, [fitNonce]);
 
   return (
     <div

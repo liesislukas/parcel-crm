@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { pointInRing, rectRing, type LngLat } from "@/lib/geo";
 import { loadParcelData, type ParcelData } from "@/lib/parcelData";
+import type { Project } from "@/lib/project";
+import { findProject } from "@/lib/projectStore";
 import ParcelDetails from "./ParcelDetails";
 import ParcelMap from "./ParcelMap";
 import SelectionActions from "./SelectionActions";
@@ -17,6 +19,11 @@ export default function MapWorkspace() {
   const [focusedPin, setFocusedPin] = useState<string | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [flyTo, setFlyTo] = useState<{ center: LngLat; zoom: number; nonce: number } | null>(null);
+  const [fitTo, setFitTo] = useState<{
+    bbox: [number, number, number, number];
+    nonce: number;
+  } | null>(null);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -27,6 +34,39 @@ export default function MapWorkspace() {
         const loaded = await loadParcelData();
         if (cancelled) return;
         setData(loaded);
+
+        // `MapWorkspace` is client-only (`ssr: false` via `MapSection.tsx`), so `window` is
+        // safe here and reading it this way avoids the Suspense boundary `useSearchParams`
+        // would require during prerender.
+        const id = new URLSearchParams(window.location.search).get("project");
+        if (id === null) return;
+        const project = findProject(id);
+        if (project === null) return;
+
+        const present = project.pins.filter((p) => loaded.parcelsByPin.has(p));
+        setSelectedPins(present);
+        setEditingProject(project);
+
+        let west = Infinity;
+        let south = Infinity;
+        let east = -Infinity;
+        let north = -Infinity;
+        for (const pin of present) {
+          const centre = loaded.centroids.get(pin);
+          if (!centre) continue;
+          west = Math.min(west, centre.lng);
+          south = Math.min(south, centre.lat);
+          east = Math.max(east, centre.lng);
+          north = Math.max(north, centre.lat);
+        }
+        if (west === Infinity) return;
+        if (west === east || south === north) {
+          west -= 0.0008;
+          south -= 0.0008;
+          east += 0.0008;
+          north += 0.0008;
+        }
+        setFitTo({ bbox: [west, south, east, north], nonce: Date.now() });
       } catch {
         if (!cancelled) setFailed(true);
       }
@@ -156,7 +196,17 @@ export default function MapWorkspace() {
         onParcelClick={handleParcelClick}
         onRectDrawn={handleRectDrawn}
         flyTo={flyTo}
+        fitTo={fitTo}
       />
+
+      {editingProject !== null ? (
+        <p
+          data-testid="project-mode"
+          className="mt-3 rounded-lg border border-black/10 p-3 text-sm dark:border-white/15"
+        >
+          {`Editing project “${editingProject.name}”. Click parcels on the map to add them, use Remove in the list to take one out, then save.`}
+        </p>
+      ) : null}
 
       <SelectionActions
         selectedPins={selectedPins}
