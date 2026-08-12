@@ -22,6 +22,7 @@ function absent<T>(): FieldState<T> {
 
 function makeParcel(overrides: Partial<Parcel> & { pin: string }): Parcel {
   return {
+    id: overrides.id ?? `id-${overrides.pin}`,
     pin: overrides.pin,
     owner: overrides.owner ?? present("SOME OWNER"),
     taxBillName: overrides.taxBillName ?? absent(),
@@ -30,7 +31,8 @@ function makeParcel(overrides: Partial<Parcel> & { pin: string }): Parcel {
     mailingStreet: overrides.mailingStreet ?? absent(),
     mailingCityStateZip: overrides.mailingCityStateZip ?? absent(),
     acres: overrides.acres ?? absent(),
-    geometry: overrides.geometry ?? { type: "Point", coordinates: [0, 0] },
+    centroid: overrides.centroid ?? { lng: -90.5, lat: 41.5 },
+    footprint: overrides.footprint ?? `fp-${overrides.pin}`,
   };
 }
 

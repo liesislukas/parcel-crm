@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { Feature, Geometry } from "geojson";
-import { toParcel, type Parcel, type RawParcelProperties } from "@/lib/parcel";
+import { toParcelFromRow, type Parcel, type ParcelAttrRow } from "@/lib/parcel";
 import { deriveOwners } from "@/lib/owners";
 import { CHANNELS } from "@/lib/campaigns/model";
 import {
@@ -80,10 +79,10 @@ describe("renderTemplate", () => {
   });
 
   it("keeps the rendered sms intro within SMS_MAX_CHARS for the longest real owner name", () => {
-    const raw = JSON.parse(readFileSync("public/data/rock-island-parcels.json", "utf8")) as {
-      features: Feature<Geometry, RawParcelProperties>[];
+    const raw = JSON.parse(readFileSync("public/data/rock-island-parcels.attrs.json", "utf8")) as {
+      rows: ParcelAttrRow[];
     };
-    const parcels: Parcel[] = raw.features.map(toParcel);
+    const parcels: Parcel[] = raw.rows.map(toParcelFromRow);
     const owners = deriveOwners(parcels);
     const longestName = owners.reduce(
       (longest, o) => (o.ownerName.length > longest.length ? o.ownerName : longest),

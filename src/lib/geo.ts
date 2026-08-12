@@ -1,8 +1,9 @@
 import type { Geometry } from "geojson";
 
 /**
- * Coordinates are treated as planar degrees throughout. At 41.5°N over a ~3.3 km box the
- * error from ignoring Earth curvature is far below one parcel width, so no projection is
+ * Coordinates are treated as planar degrees throughout. At 41.5°N across Rock Island
+ * County's ≈76 km × 49 km extent, the error from ignoring Earth curvature stays far below
+ * one parcel width for the point-in-polygon and centroid uses here, so no projection is
  * applied. This is a decision, not an oversight — do not "fix" it.
  */
 export type LngLat = { lng: number; lat: number };
@@ -72,8 +73,12 @@ function ringCentroid(ring: number[][]): LngLat {
  * The parcel's centre point, used by the selection rule: a parcel is selected when its
  * centre falls inside the drawn shape.
  *
- * For a MultiPolygon, the outer ring with the most vertices wins — 18 of the 6,026 subset
- * parcels are MultiPolygons, typically a main lot plus a sliver.
+ * For a MultiPolygon, the outer ring with the most vertices wins — 618 of the 65,953 mapped
+ * county parcels are MultiPolygons, typically a main lot plus a sliver.
+ *
+ * Retained as the reference implementation that `scripts/fetch-parcels.mjs` mirrors when it
+ * precomputes every parcel's centroid at extract time; the browser reads that precomputed
+ * value off `Parcel.centroid` and no longer calls this at runtime.
  */
 export function polygonCentroid(geometry: Geometry): LngLat {
   if (geometry.type === "Polygon") {

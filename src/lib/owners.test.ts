@@ -1,59 +1,56 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { Feature, Geometry } from "geojson";
-import { toParcel, type Parcel, type RawParcelProperties } from "@/lib/parcel";
+import { toParcelFromRow, type Parcel, type ParcelAttrRow } from "@/lib/parcel";
 import { deriveOwners, fnv1a32, ownerKey, ownerSlug } from "./owners";
 
 function loadParcels(): Parcel[] {
-  const raw = JSON.parse(readFileSync("public/data/rock-island-parcels.json", "utf8")) as {
-    features: Feature<Geometry, RawParcelProperties>[];
+  const raw = JSON.parse(readFileSync("public/data/rock-island-parcels.attrs.json", "utf8")) as {
+    rows: ParcelAttrRow[];
   };
-  return raw.features.map(toParcel);
+  return raw.rows.map(toParcelFromRow);
 }
 
 describe("deriveOwners against the real committed parcel file", () => {
   const parcels = loadParcels();
 
-  it("has 6,026 features, 3 with a blank owner1_name", () => {
-    expect(parcels.length).toBe(6026);
+  it("has 65,955 records, 192 with a blank owner1_name", () => {
+    expect(parcels.length).toBe(65955);
     const skipped = parcels.filter((p) => !p.owner.present);
-    expect(skipped.length).toBe(3);
+    expect(skipped.length).toBe(192);
   });
 
-  it("returns exactly 4,573 distinct owners", () => {
+  it("returns exactly 50,040 distinct owners", () => {
     const owners = deriveOwners(parcels);
-    expect(owners.length).toBe(4573);
+    expect(owners.length).toBe(50040);
   });
 
   it("has zero ownerKey collisions, while ownerSlug alone collides (proving the hash suffix is required)", () => {
     const owners = deriveOwners(parcels);
     const keys = new Set(owners.map((o) => o.ownerKey));
     const slugs = new Set(owners.map((o) => ownerSlug(o.ownerName)));
-    expect(keys.size).toBe(4573);
-    expect(slugs.size).toBe(4556);
+    expect(keys.size).toBe(50040);
+    expect(slugs.size).toBe(49877);
   });
 
   it("orders by totalAcres descending, then ownerName ascending", () => {
     const owners = deriveOwners(parcels);
 
-    expect(owners[0].ownerName).toBe("ROCK ISLAND ARSENAL");
-    expect(owners[0].parcelCount).toBe(1);
-    expect(owners[0].mailingStreet).toBeNull();
-    expect(owners[0].mailingCityStateZip).toBeNull();
-    expect(owners[0].totalAcres).toBeCloseTo(975.6855737299176, 6);
+    expect(owners[0].ownerName).toBe("MOLINE CONSUMERS CO");
+    expect(owners[0].parcelCount).toBe(101);
+    expect(owners[0].mailingStreet).toBe("4640 E 56TH ST");
+    expect(owners[0].totalAcres).toBeCloseTo(4055.7283599818534, 6);
 
-    expect(owners[1].ownerName).toBe("CITY OF ROCK ISLAND");
-    expect(owners[1].parcelCount).toBe(65);
+    expect(owners[1].ownerName).toBe("METRO AIR AUTH");
+    expect(owners[1].parcelCount).toBe(219);
 
-    expect(owners[2].ownerName).toBe("AUGUSTANA COLLEGE");
-    expect(owners[2].parcelCount).toBe(127);
+    expect(owners[2].ownerName).toBe("DEERE & CO");
+    expect(owners[2].parcelCount).toBe(86);
   });
 
-  it("has exactly one owner with no county mailing address, and it is ROCK ISLAND ARSENAL", () => {
+  it("has exactly two owners with no county mailing address", () => {
     const owners = deriveOwners(parcels);
     const noAddress = owners.filter((o) => o.mailingStreet === null);
-    expect(noAddress.length).toBe(1);
-    expect(noAddress[0].ownerName).toBe("ROCK ISLAND ARSENAL");
+    expect(noAddress.length).toBe(2);
   });
 
   it("computes the well-known ownerKey for ROCK ISLAND ARSENAL", () => {
