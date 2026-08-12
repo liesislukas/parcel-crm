@@ -1,0 +1,73 @@
+{
+  "county": "rock-island",
+  "countyName": "Rock Island County, IL",
+  "source": "OpenStreetMap",
+  "sourceQueryApi": "Overpass API",
+  "sourceEndpoint": "https://overpass-api.de/api/interpreter",
+  "sourceLicense": "Open Database License (ODbL) v1.0",
+  "sourceLicenseUrl": "https://www.openstreetmap.org/copyright",
+  "sourceAttribution": "© OpenStreetMap contributors",
+  "sourceLicenseNote": "This file is a Derivative Database of OpenStreetMap and is offered under the same Open Database License (ODbL) v1.0.",
+  "retrievedAt": "2026-08-12T09:14:31.399Z",
+  "bbox": [
+    -91.0721,
+    41.3268,
+    -90.1599,
+    41.783
+  ],
+  "bboxLabel": "91.0721°W–90.1599°W, 41.3268°N–41.7830°N",
+  "bboxNote": "The bounding box of Rock Island County, IL from the US Census TIGERweb county layer. It is a rectangle, so it also covers neighbouring ground — including part of Scott County, Iowa across the Mississippi. Infrastructure outside the county line is kept, because a site's nearest substation does not stop at a county boundary.",
+  "bboxSourceUrl": "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/State_County/MapServer/13",
+  "categories": [
+    {
+      "key": "substation",
+      "label": "Electric substations",
+      "available": true,
+      "osmQuery": "node/way/relation[\"power\"=\"substation\"]",
+      "featureCount": 107,
+      "fieldCoverage": {
+        "name": 12,
+        "operator": 27,
+        "voltage": 53,
+        "substationType": 39
+      },
+      "checked": null,
+      "note": "Drawn at each substation's centre point. OpenStreetMap maps most substations as an area; the centre point is used so they stay legible at county zoom."
+    },
+    {
+      "key": "transmission-line",
+      "label": "Transmission lines",
+      "available": true,
+      "osmQuery": "way[\"power\"=\"line\"]",
+      "featureCount": 315,
+      "fieldCoverage": {
+        "name": 15,
+        "operator": 103,
+        "voltage": 262,
+        "cables": 146
+      },
+      "checked": null,
+      "note": "power=line only. power=minor_line (low-voltage distribution) and power=tower (pylons) are excluded — neither is transmission infrastructure a data-centre site is assessed against."
+    },
+    {
+      "key": "interconnection-capacity",
+      "label": "Available interconnection capacity (MW) per substation",
+      "available": false,
+      "osmQuery": null,
+      "featureCount": null,
+      "fieldCoverage": null,
+      "checked": "OpenStreetMap: none of the substation features in this snapshot carry any capacity, rating, MVA or load tag. HIFLD Open (GeoPlatform ArcGIS org Hp6G80Pky0om7QvQ): 0 of 526 published services have a name matching /substation/i — HIFLD's substations layer is not in the public catalogue, and HIFLD Secure (gii.dhs.gov) is login-gated.",
+      "note": "No public source found for Rock Island County. Not shown, and not estimated."
+    }
+  ],
+  "crossCheck": {
+    "source": "HIFLD Open — Electric Power Transmission Lines",
+    "url": "https://services1.arcgis.com/Hp6G80Pky0om7QvQ/arcgis/rest/services/Electric_Power_Transmission_Lines/FeatureServer/0",
+    "featureCount": 59,
+    "note": "An independent federal source covering the same box. The two feature counts are not comparable — HIFLD publishes one feature per circuit run while OpenStreetMap splits a way wherever its tags change. Cited as corroboration that transmission lines exist here, never as a coverage measure.",
+    "licenseKnown": false,
+    "licenseNote": "The HIFLD service publishes no copyrightText and has no ArcGIS Online item carrying licence terms, so its geometry is not redistributed in this build — only its feature count is cited."
+  },
+  "hifldSubstationServices": [],
+  "hifldServiceCount": 526
+}
