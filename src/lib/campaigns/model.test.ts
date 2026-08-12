@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { ALLOWED_FACTS, canTransition, countsFrom, FACT_LABEL, messageStateFrom } from "./model";
+import {
+  ALLOWED_FACTS,
+  BOUNCE_DETAIL,
+  canTransition,
+  countsFrom,
+  FACT_LABEL,
+  messageStateFrom,
+} from "./model";
 
 describe("canTransition", () => {
   it("allows email to move from delivered to opened", () => {
@@ -55,6 +62,14 @@ describe("FACT_LABEL", () => {
 describe("ALLOWED_FACTS", () => {
   it("excludes message.opened for sms", () => {
     expect(ALLOWED_FACTS.sms.includes("message.opened")).toBe(false);
+  });
+});
+
+describe("BOUNCE_DETAIL", () => {
+  it("labels every bounce reason as simulated, per channel", () => {
+    expect(BOUNCE_DETAIL.email).toContain("(simulated)");
+    expect(BOUNCE_DETAIL.sms).toContain("(simulated)");
+    expect(BOUNCE_DETAIL.direct_mail).toContain("(simulated)");
   });
 });
 

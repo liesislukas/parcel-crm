@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { base62, campaignId, eventId, messageId, shortToken } from "./ids";
 
+// ids.ts (and this file) are exempt from the campaigns-wide "simulat" labelling guard in
+// no-dispatch.test.ts: id generation is pure identifier math with no simulated lifecycle
+// data of its own — the simulated labelling lives in the modules that actually render
+// user-visible content.
+
 describe("base62", () => {
   it("pads to the requested length", () => {
     expect(base62(0, 5)).toBe("00000");
