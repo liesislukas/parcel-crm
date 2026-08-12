@@ -17,6 +17,12 @@ jobs:
       - run: npm ci
       - run: npm run format:check
       - run: npm run lint
+      # Next 16 generates the `LayoutProps` / `PageProps` route types into `.next/types`,
+      # which is gitignored and therefore absent in a fresh CI checkout. Without this step
+      # `tsc --noEmit` fails with `TS2304: Cannot find name 'LayoutProps'` in
+      # src/app/layout.tsx — a CI-only failure that does not reproduce locally, because a
+      # local `next dev`/`next build` has already written those types.
+      - run: npx next typegen
       - run: npx tsc --noEmit
       - run: npm test
       # Playwright (`npm run test:browser`) is deliberately NOT run here. It targets the
