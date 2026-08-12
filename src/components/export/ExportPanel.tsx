@@ -132,9 +132,9 @@ export default function ExportPanel() {
           application: they are not real contact details, and no email, letter, or SMS was ever
           sent. Columns ending <code>_crm</code> are records you created in this CRM. An empty cell
           in a county column means the county published no value for that field — it is never a
-          zero. A real $0 assessed value exports as <code>0</code>, because 2,330 of the 65,955 loaded
-          parcels are tax-exempt and their zero is a fact. The raw county attributes file is also
-          public at{" "}
+          zero. A real $0 assessed value exports as <code>0</code>, because 2,330 of the 65,955
+          loaded parcels are tax-exempt and their zero is a fact. The raw county attributes file is
+          also public at{" "}
           <a href="/data/rock-island-parcels.attrs.json" className="underline">
             /data/rock-island-parcels.attrs.json
           </a>{" "}

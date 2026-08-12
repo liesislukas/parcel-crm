@@ -34,6 +34,13 @@ async function drawRectangle(
   from: { dx: number; dy: number },
   to: { dx: number; dy: number },
 ): Promise<void> {
+  // The map opens on the whole county now. A rectangle drawn at that zoom would cover most
+  // of Rock Island County and be refused by the 2,000-parcel draw limit, so every drawing
+  // test first flies to a known parcel at zoom 15 via `show-incomplete`. The draw that
+  // follows replaces the selection outright, so the flown-to parcel does not contaminate it.
+  await page.getByTestId("show-incomplete").click();
+  await expect(page.getByTestId("parcel-details")).toContainText("Parcel ID (PIN)");
+
   await page.getByTestId("draw-area").click();
   await expect(page.getByTestId("draw-area")).toHaveAttribute("aria-pressed", "true");
 

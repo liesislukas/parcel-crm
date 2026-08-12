@@ -8,11 +8,17 @@ no local setup.
 Recorded against the deployed runtime, not a local build. Every frame is the hosted URL above,
 serving commit `61ca2b2`.
 
+> **Re-record needed (2026-08-12).** ISSUE-013 raised coverage from the 6,026-parcel working
+> subset to all 65,955 county records, so the walkthrough above still shows the old subset
+> framing and the old banner text. The numbered description below has been corrected to what
+> the deployed runtime does now; the GIF itself has not yet been re-recorded.
+
 ## What the walkthrough shows
 
-1. **The map with the power overlay on** — 6,026 real Rock Island County parcels, plus 107 OSM
-   substations and 315 transmission-line ways in violet, with the scope and sources stated in the
-   banner (6,026 of 65,955 loaded, retrieval date, source links).
+1. **The map with the power overlay on** — 65,955 real Rock Island County parcel records, 65,953
+   of them mapped, plus 107 OSM substations and 315 transmission-line ways in violet, with the
+   scope and sources stated in the banner (65,955 of 65,955 loaded, the 2 records with no outline
+   named, retrieval date, source links).
 2. **Drawing an area** — a drag over downtown Rock Island selects 1,099 parcels. The selection
    panel reports 240.29 ac across 142 separate blocks and 931 distinct owners, states the
    adjacency rule, and discloses the condo/PUD duplicate-outline dedup rather than double-counting.

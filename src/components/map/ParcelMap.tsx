@@ -388,10 +388,7 @@ export default function ParcelMap(props: ParcelMapProps) {
 
     for (const id of next) {
       if (previous.has(id)) continue;
-      map.setFeatureState(
-        { source: "parcels", sourceLayer, id: Number(id) },
-        { selected: true },
-      );
+      map.setFeatureState({ source: "parcels", sourceLayer, id: Number(id) }, { selected: true });
     }
     for (const id of previous) {
       if (next.has(id)) continue;

@@ -13,8 +13,8 @@ export default defineConfig({
   use: {
     baseURL:
       process.env.PLAYWRIGHT_BASE_URL ?? "https://parcel-crm-liesislukas-projects.vercel.app",
-    // The 2.96 MB parcel file has to land and be parsed before anything is clickable.
-    actionTimeout: 15000,
+    // The parcel attributes sidecar (10.7 MB) has to land and parse, and the first PMTiles range requests have to resolve, before anything is clickable.
+    actionTimeout: 30000,
   },
   expect: { timeout: 20000 },
   reporter: [["list"], ["html", { open: "never", outputFolder: "playwright-report" }]],

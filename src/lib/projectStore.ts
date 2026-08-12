@@ -112,10 +112,7 @@ export function createProject(name: string, parcelIds: readonly string[]): Proje
   return project;
 }
 
-export function replaceProjectParcelIds(
-  id: string,
-  parcelIds: readonly string[],
-): Project | null {
+export function replaceProjectParcelIds(id: string, parcelIds: readonly string[]): Project | null {
   const projects = readEnvelope();
   const index = projects.findIndex((p) => p.id === id);
   if (index === -1) return null;

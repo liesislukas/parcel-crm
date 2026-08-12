@@ -38,12 +38,15 @@ test("lists owner records derived from the parcel data", async ({ page }) => {
   await page.goto("/owners");
 
   const summary = page.getByTestId("owners-summary");
-  await expect(summary).toContainText("4,573 owner CRM records");
-  await expect(summary).toContainText("6,026 loaded parcels");
+  await expect(summary).toContainText("50,040 owner CRM records");
+  await expect(summary).toContainText("65,955 loaded parcels");
 
   const rows = page.getByTestId("owner-row");
   await expect(rows.first()).toBeVisible();
-  await expect(rows.first()).toContainText("AUGUSTANA COLLEGE");
+  // buildOwnerRecords sorts by parcelCount descending, then name ascending. County-wide the
+  // top four are FIRST FINANCIAL GROUP LLC (321), METRO AIR AUTH (220), CITY OF ROCK ISLAND
+  // (218) and CITY OF MOLINE (208).
+  await expect(rows.first()).toContainText("FIRST FINANCIAL GROUP LLC");
 });
 
 test("shows county fields attributed and mocked contact badged", async ({ page }) => {

@@ -98,12 +98,16 @@ function isBlank(v) {
 function hasGeometry(g) {
   if (!g) return false;
   if (g.type === "Polygon") {
-    return Array.isArray(g.coordinates) && Array.isArray(g.coordinates[0]) && g.coordinates[0].length > 0;
+    return (
+      Array.isArray(g.coordinates) && Array.isArray(g.coordinates[0]) && g.coordinates[0].length > 0
+    );
   }
   if (g.type === "MultiPolygon") {
     return (
       Array.isArray(g.coordinates) &&
-      g.coordinates.some((part) => Array.isArray(part) && Array.isArray(part[0]) && part[0].length > 0)
+      g.coordinates.some(
+        (part) => Array.isArray(part) && Array.isArray(part[0]) && part[0].length > 0,
+      )
     );
   }
   return false;

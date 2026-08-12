@@ -49,13 +49,15 @@ const CAMPAIGN_HEADER =
   "event_id_mock,campaign_id_mock,campaign_name_mock,channel_mock,message_id_mock,message_subject_mock,message_body_mock,event_state_mock,event_at_mock,owner_id_crm,owner_name,project_id_crm,project_name_crm,simulated,source_system,export_scope,export_generated_at";
 
 const DATASETS = [
-  { id: "parcels", header: PARCELS_HEADER, minRows: 6026 },
+  { id: "parcels", header: PARCELS_HEADER, minRows: 65955 },
   { id: "owners", header: OWNERS_HEADER, minRows: 1 },
   { id: "campaign-activity", header: CAMPAIGN_HEADER, minRows: 1 },
 ] as const;
 
 for (const { id, header, minRows } of DATASETS) {
   test(`downloads the ${id} CSV with the byte-exact header and honest data`, async ({ page }) => {
+    // The parcels CSV is 65,955 rows now, built in the browser from the attributes sidecar.
+    test.setTimeout(120000);
     if (id === "campaign-activity") {
       // No campaign exists yet in this fresh browser context, so without this the
       // download would always be an honest 0-row file that fails the minRows: 1
@@ -98,7 +100,7 @@ for (const { id, header, minRows } of DATASETS) {
     // 4. Row count.
     expect(dataLines.length).toBeGreaterThanOrEqual(minRows);
     if (id === "parcels") {
-      expect(dataLines.length).toBe(6026);
+      expect(dataLines.length).toBe(65955);
     }
 
     // 5. Structural check: every line has the same comma count as the header, or

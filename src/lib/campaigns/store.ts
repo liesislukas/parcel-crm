@@ -191,7 +191,11 @@ export function readProjects(): {
           Array.isArray(v) ? (v.filter((x) => typeof x === "string") as string[]) : null;
         const pins = stringsOf(p.parcelPins) ?? stringsOf(p.pins);
         const ids = stringsOf(p.parcelIds);
-        if ((pins === null && ids === null) || typeof p.id !== "string" || typeof p.name !== "string")
+        if (
+          (pins === null && ids === null) ||
+          typeof p.id !== "string" ||
+          typeof p.name !== "string"
+        )
           return [];
         return [{ id: p.id, name: p.name, parcelPins: pins ?? [], parcelIds: ids ?? [] }];
       });

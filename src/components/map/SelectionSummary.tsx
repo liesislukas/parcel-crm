@@ -51,13 +51,13 @@ export default function SelectionSummary({
       <p className="text-black/60 dark:text-white/60">
         {meta.mappedParcelCount.toLocaleString("en-US")} of these have a mapped outline and can be
         clicked, selected and grouped. {meta.unmappedPins.length} records publish an empty polygon
-        ring at source and cannot be drawn or added to a project: PIN {meta.unmappedPins.join(", ")}.
-        Their ownership, value and mailing fields are loaded and searchable.
+        ring at source and cannot be drawn or added to a project: PIN {meta.unmappedPins.join(", ")}
+        . Their ownership, value and mailing fields are loaded and searchable.
       </p>
       <p className="text-black/60 dark:text-white/60">
         Source: {meta.sourceOrg} parcel layer (ArcGIS FeatureServer), full county extent{" "}
-        {meta.bboxLabel}, retrieved {new Date(meta.retrievedAt).toISOString().slice(0, 10)}. Licence:{" "}
-        {meta.sourceLicense}.{" "}
+        {meta.bboxLabel}, retrieved {new Date(meta.retrievedAt).toISOString().slice(0, 10)}.
+        Licence: {meta.sourceLicense}.{" "}
         <a href={meta.sourceLayerUrl} target="_blank" rel="noreferrer" className="underline">
           View source layer
         </a>{" "}

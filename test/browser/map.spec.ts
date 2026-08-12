@@ -5,18 +5,23 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  * and never points at a local server.
  */
 
-/** The bbox centre lands on this parcel after `fitBounds`. Verified against the data. */
-const CENTRE_PIN = "0736343005";
-
-/** `meta.incompletePins[0]` — the parcel `show-incomplete` flies to. */
-const INCOMPLETE_PIN = "0725200001";
+/**
+ * `meta.incompletePins[0]` — the parcel `show-incomplete` flies to, at zoom 15.
+ *
+ * The map now opens on the whole county, so the old assumption that the canvas centre sits
+ * on one known parcel is dead: at county zoom the centre is an arbitrary point in a
+ * 65,953-parcel layer. `show-incomplete` is the deterministic replacement — it focuses
+ * `incompletePins[0]` and flies to its precomputed centroid, so after it every test knows
+ * exactly which parcel is under the middle of the canvas.
+ */
+const INCOMPLETE_PIN = "0331120001";
 
 /**
- * The parcel data is a 2.96 MB fetch that is then tiled by a web worker before
- * `queryRenderedFeatures` can hit anything. Waiting for the canvas alone is not enough —
- * the canvas exists as soon as the basemap does. So we wait for the honesty panel (proof
- * the JSON parsed), for the canvas, for the attribution control the map adds on create,
- * and then for the parcel geometry to actually be painted.
+ * The parcel attributes sidecar is a 10.7 MB fetch, and the geometry arrives separately as
+ * PMTiles range requests. Waiting for the canvas alone is not enough — the canvas exists as
+ * soon as the basemap does. So we wait for the honesty panel (proof the sidecar parsed), for
+ * the canvas, for the attribution control the map adds on create, and then for the parcel
+ * geometry to actually be painted.
  */
 async function waitForMapReady(page: Page): Promise<Locator> {
   await expect(page.getByTestId("selection-summary")).toBeVisible();
@@ -37,6 +42,18 @@ async function waitForMapReady(page: Page): Promise<Locator> {
     { timeout: 30000 },
   );
   return map;
+}
+
+/**
+ * Flies to `incompletePins[0]` at zoom 15 and waits for the details panel to prove it
+ * landed. Every click or drag test starts here: at county zoom a drag would cover most of
+ * Rock Island County and trip the 2,000-parcel draw limit, and a click would be a lottery.
+ */
+async function flyToKnownParcel(page: Page): Promise<void> {
+  await page.getByTestId("show-incomplete").click();
+  await expect(page.getByTestId("parcel-details").locator('[data-field="pin"] dd')).toHaveText(
+    INCOMPLETE_PIN,
+  );
 }
 
 /** Reads the integer out of "N parcels selected". */
@@ -122,15 +139,19 @@ test("clicking a parcel opens the details panel", async ({ page }) => {
   const map = await waitForMapReady(page);
   const details = page.getByTestId("parcel-details");
 
-  // The click is deterministic: `fitBounds` puts the bbox centre (-90.56, 41.505) at the
-  // canvas centre, and that coordinate falls inside PIN 0736343005. The poll only covers
-  // the worker still tiling the GeoJSON, not any ambiguity about which parcel is hit.
+  // Deterministic path: fly to a known parcel at zoom 15 first, clear the panel, then click
+  // the canvas centre — which is that parcel's centroid. The poll only covers PMTiles range
+  // requests still landing, not any ambiguity about which parcel is hit.
+  await flyToKnownParcel(page);
+  await page.getByTestId("clear-selection").click();
+  await expect(page.getByTestId("selection-count")).toHaveText("0 parcels selected");
+
   await expect(async () => {
     await map.click();
     await expect(details).toContainText("Parcel ID (PIN)", { timeout: 2000 });
   }).toPass({ timeout: 45000 });
 
-  await expect(details.locator('[data-field="pin"] dd')).toHaveText(CENTRE_PIN);
+  await expect(details.locator('[data-field="pin"] dd')).toHaveText(INCOMPLETE_PIN);
   await expect(page.getByTestId("selection-count")).toHaveText("1 parcel selected");
 });
 
@@ -163,21 +184,28 @@ test("parcels still render when the basemap tile server stalls", async ({ page }
     .poll(() => stalledTiles, { message: "no basemap tile request was intercepted" })
     .toBeGreaterThan(0);
 
-  // Same deterministic centre click as the healthy-basemap spec above. A DOM-level result
-  // is the honest proof that the parcel layers exist: `parcels-fill` has to be present and
-  // painted for MapLibre to hit-test the click and for the details panel to populate.
+  // Same deterministic centre click as the healthy-basemap spec above, and the clear in the
+  // middle matters: it empties the details panel, so what populates it afterwards can only
+  // be the map click. A DOM-level result is the honest proof that the parcel layers exist —
+  // `parcels-fill` has to be present and painted for MapLibre to hit-test the click.
+  await flyToKnownParcel(page);
+  await page.getByTestId("clear-selection").click();
+  await expect(page.getByTestId("selection-count")).toHaveText("0 parcels selected");
+
   await expect(async () => {
     await map.click();
     await expect(details).toContainText("Parcel ID (PIN)", { timeout: 2000 });
   }).toPass({ timeout: 45000 });
 
-  await expect(details.locator('[data-field="pin"] dd')).toHaveText(CENTRE_PIN);
+  await expect(details.locator('[data-field="pin"] dd')).toHaveText(INCOMPLETE_PIN);
   await expect(page.getByTestId("selection-count")).toHaveText("1 parcel selected");
 });
 
 test("drawing a rectangle selects multiple parcels", async ({ page }) => {
   const map = await waitForMapReady(page);
 
+  // Zoom 15 first: a drag at county zoom would cover thousands of parcels and be refused.
+  await flyToKnownParcel(page);
   await drawRectangle(page, map, { dx: -90, dy: -90 }, { dx: 90, dy: 90 });
 
   await expect(page.getByTestId("selection-count")).toHaveText(/^\d+ parcels selected$/);
@@ -187,6 +215,8 @@ test("drawing a rectangle selects multiple parcels", async ({ page }) => {
 test("clearing and redrawing replaces the previous selection", async ({ page }) => {
   const map = await waitForMapReady(page);
 
+  // Zoom 15 first: a drag at county zoom would cover thousands of parcels and be refused.
+  await flyToKnownParcel(page);
   await drawRectangle(page, map, { dx: -90, dy: -90 }, { dx: 90, dy: 90 });
   await expect(page.getByTestId("selection-count")).toHaveText(/^\d+ parcels selected$/);
   const first = await selectionCount(page);
@@ -212,14 +242,17 @@ test("the incomplete-data parcel renders unavailable fields", async ({ page }) =
   await expect(details).toContainText("Not available");
   await expect(details.locator('[data-field-state="missing"]').first()).toBeVisible();
 
-  // The deterministic anchor: meta.incompletePins[0] is the Rock Island Arsenal parcel.
+  // The deterministic anchor: county-wide, meta.incompletePins[0] is PIN 0331120001, which
+  // the county publishes with an outline and an acreage but no owner, value or mailing
+  // fields at all. Every absent field says so rather than showing a zero.
   await expect(details.locator('[data-field="pin"] dd')).toHaveText(INCOMPLETE_PIN);
-  await expect(details.locator('[data-field="owner"] dd')).toContainText("ROCK ISLAND ARSENAL");
-  await expect(details.locator('[data-field="assessedValue"] dd')).toContainText("$0");
-  await expect(details.locator('[data-field="assessedValue"] dd')).toContainText(
-    "commonly a tax-exempt parcel",
+  await expect(details.locator('[data-field="owner"] dd')).toHaveText("Not available");
+  await expect(details.locator('[data-field="owner"] dd')).toHaveAttribute(
+    "data-field-state",
+    "missing",
   );
-  await expect(details.locator('[data-field="acres"] dd')).toHaveText("975.69 ac");
+  await expect(details.locator('[data-field="assessedValue"] dd')).toHaveText("Not available");
+  await expect(details.locator('[data-field="acres"] dd')).toHaveText("1.20 ac");
 
   // Both mailing-address lines are absent in the source, and both say so explicitly.
   const mailing = details.locator('[data-field="mailingStreet"] dd');

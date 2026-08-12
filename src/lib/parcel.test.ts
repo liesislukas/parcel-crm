@@ -97,7 +97,20 @@ describe("toParcelFromRow", () => {
   });
 
   it("treats a blank PIN as UNKNOWN rather than an empty parcel identifier", () => {
-    const parcel = toParcelFromRow([2, " ", "SOME LLC", null, null, null, null, null, null, 0, 0, "0"]);
+    const parcel = toParcelFromRow([
+      2,
+      " ",
+      "SOME LLC",
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      0,
+      0,
+      "0",
+    ]);
 
     expect(parcel.pin).toBe("UNKNOWN");
     expect(parcel.owner).toEqual({ present: true, value: "SOME LLC" });
