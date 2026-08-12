@@ -1,8 +1,6 @@
-import { SectionPage } from "@/components/SectionPage";
-import { sections } from "@/lib/nav";
-
-const section = sections.find((s) => s.slug === "campaigns")!;
+"use client";
+import { CampaignsWorkspace } from "@/components/campaigns/CampaignsWorkspace";
 
 export default function CampaignsPage() {
-  return <SectionPage section={section} />;
+  return <CampaignsWorkspace />;
 }
