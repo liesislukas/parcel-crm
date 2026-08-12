@@ -16,6 +16,7 @@ import {
   type EnrichmentStore,
 } from "@/lib/store";
 import type { ParcelMeta } from "@/components/map/MapWorkspace";
+import OwnerRecord from "@/components/owners/OwnerRecord";
 
 type CompletenessFilter = "all" | "complete" | "incomplete";
 
@@ -245,7 +246,11 @@ export default function OwnersWorkspace() {
           ) : null}
         </div>
 
-        <div>{selectedOwner ? null /* W4 mounts <OwnerRecord> here */ : null}</div>
+        <div>
+          {selectedOwner ? (
+            <OwnerRecord owner={selectedOwner} store={store} onEnriched={setStore} />
+          ) : null}
+        </div>
       </div>
     </div>
   );
