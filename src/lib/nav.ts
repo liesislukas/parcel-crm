@@ -6,7 +6,7 @@ export type NavSection = {
   planned: string[];
 };
 
-/** The six sections of the acquisition workflow. Live routes, filled in by later issues. */
+/** The seven sections of the acquisition workflow. Live routes, filled in by later issues. */
 export const sections: NavSection[] = [
   {
     slug: "map",
@@ -42,6 +42,17 @@ export const sections: NavSection[] = [
       "Store parcel identifiers, ownership details, assessed values, and mailing addresses",
       "Attach mocked contact information to the appropriate owner records",
       "Record owner interest, asking price, and acquisition status",
+    ],
+  },
+  {
+    slug: "acquisitions",
+    href: "/acquisitions",
+    label: "Acquisitions",
+    blurb:
+      "Owner interest, asking price and acquisition stage for every owner, parcel, and proposed project, with the tasks assigned against each.",
+    planned: [
+      "Record owner interest, asking price, and acquisition status",
+      "Assign acquisition tasks and next steps to team members",
     ],
   },
   {
