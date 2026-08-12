@@ -48,3 +48,6 @@ next-env.d.ts
 # playwright browser lane
 /playwright-report/
 /test-results/
+
+# Intermediate tile input for scripts/build-parcel-tiles.sh — the .pmtiles artifact is committed instead.
+/public/data/rock-island-parcels.tiles.geojsonl
