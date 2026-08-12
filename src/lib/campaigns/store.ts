@@ -175,7 +175,24 @@ export function readProjects(): { id: string; name: string; parcelPins: string[]
     if (raw === null) return [];
     const parsed = JSON.parse(raw) as { version?: number; projects?: unknown } | null;
     if (parsed?.version === 1 && Array.isArray(parsed.projects)) {
-      return parsed.projects as { id: string; name: string; parcelPins: string[] }[];
+      // ISSUE-004's shipped Project type calls the member list `pins`; this module's
+      // pre-merge contract guessed `parcelPins`. Accept both, emit `parcelPins`, and
+      // drop records that carry neither rather than crash the picker on undefined.
+      return (parsed.projects as Record<string, unknown>[]).flatMap((p) => {
+        const pins = Array.isArray(p.parcelPins)
+          ? p.parcelPins
+          : Array.isArray(p.pins)
+            ? p.pins
+            : null;
+        if (pins === null || typeof p.id !== "string" || typeof p.name !== "string") return [];
+        return [
+          {
+            id: p.id,
+            name: p.name,
+            parcelPins: pins.filter((x) => typeof x === "string") as string[],
+          },
+        ];
+      });
     }
     return [];
   } catch {
