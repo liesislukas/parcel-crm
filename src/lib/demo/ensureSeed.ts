@@ -83,7 +83,14 @@ async function runSeedPass(today: string): Promise<void> {
       campaignIds = await seedTheCampaign(today);
     }
   } catch {
-    // A seed failure must never blank a page — fall through and record whatever succeeded.
+    // A seed failure must never blank a page — but it must not be recorded as success
+    // either. The ~11 MB attrs fetch inside `seedTheCampaign` is aborted when the user
+    // navigates away mid-seed; writing the "seeded" manifest here with an empty
+    // `campaignIds` would permanently short-circuit every later load and leave
+    // /campaigns silently empty in this browser (QA-reproduced, 2/2). Leave the
+    // manifest absent instead: the next load retries. `seedProjects` and
+    // `seedTheCampaign` both re-check their stores first, so a retry cannot duplicate.
+    return;
   }
 
   writeManifest({

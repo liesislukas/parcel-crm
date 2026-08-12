@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { ensureDemoSeed, resetDemoData, restoreDemoData } from "@/lib/demo/ensureSeed";
 import { loadProjects } from "@/lib/projectStore";
+import { readManifest } from "@/lib/demo/manifest";
+import { getSnapshot } from "@/lib/campaigns/store";
 import { SEEDED_PROJECT_ID } from "@/lib/demo/seedData";
 
 const RESET_CONFIRM =
@@ -37,7 +39,17 @@ export function DemoDataNotice({ surface }: { surface: "projects" | "campaigns" 
     async function check() {
       await ensureDemoSeed();
       if (cancelled) return;
-      setSeededPresent(loadProjects().some((p) => p.id === SEEDED_PROJECT_ID));
+      // "Present" means the WHOLE seed is present. Gating on the project alone hid the
+      // restore button in the aborted-campaign-seed state QA found: projects seeded,
+      // campaigns silently empty, no recovery surface. A "seeded" manifest with zero
+      // campaign ids, or an empty campaign store, now re-offers restore.
+      const projectSeeded = loadProjects().some((p) => p.id === SEEDED_PROJECT_ID);
+      const manifest = readManifest();
+      const campaignsSeeded =
+        manifest?.state === "seeded"
+          ? manifest.campaignIds.length > 0 && getSnapshot().campaigns.length > 0
+          : true; // cleared-by-choice or unseeded states are not a broken-seed condition
+      setSeededPresent(projectSeeded && campaignsSeeded);
     }
     void check();
     return () => {

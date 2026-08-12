@@ -171,6 +171,21 @@ export default function ParcelMap(props: ParcelMapProps) {
       layersReady = true;
       loadedRef.current = true;
 
+      // A project reopened via ?project=<id> sets `fitTo` while the map is still
+      // initialising; the fitTo effect has already fired against a not-yet-ready map by
+      // then and never re-fires (its nonce does not change). Apply the pending frame here
+      // so the reopened project is actually framed — QA reproduced the miss 4/4.
+      const pendingFit = fitToRef.current;
+      if (pendingFit) {
+        map.fitBounds(
+          [
+            [pendingFit.bbox[0], pendingFit.bbox[1]],
+            [pendingFit.bbox[2], pendingFit.bbox[3]],
+          ],
+          { padding: 48, maxZoom: 17, animate: false },
+        );
+      }
+
       const tiles = tilesRef.current;
 
       // All 65,953 mapped parcels, as vector tiles read straight from the committed archive.
