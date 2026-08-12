@@ -77,6 +77,17 @@ export const sections: NavSection[] = [
   },
 ];
 
+export type ReferenceSection = { slug: string; href: string; label: string };
+
+/**
+ * Reference pages. Deliberately NOT part of `sections` — that array is the six-step acquisition
+ * workflow and each entry drives a SectionPage placeholder with a `planned` list. A reference page
+ * is not a workflow step.
+ */
+export const referenceSections: ReferenceSection[] = [
+  { slug: "sources", href: "/sources", label: "Data sources" },
+];
+
 export type FutureSection = { label: string; blurb: string };
 
 /**
