@@ -316,3 +316,126 @@ export function buildParcelRows(input: BuildParcelRowsInput): string[][] {
     csvCell(generatedAt),
   ]);
 }
+
+/**
+ * W6 (ISSUE-005 gate). A local, structural type holding exactly the 13 data fields of the
+ * owners column table — deliberately NOT ISSUE-005's own `OwnerRecord` type, so that a
+ * later rename inside ISSUE-005 cannot silently change this file's column contract.
+ * `sources.ts` is the only place that maps ISSUE-005's real record into this shape.
+ */
+export type OwnerExportRecord = {
+  ownerIdCrm: string;
+  ownerName: string;
+  mailingAddress: string | null;
+  mailingCityStateZip: string | null;
+  parcelCount: number;
+  parcelPins: string[]; // ascending
+  totalAcres: number;
+  parcelsMissingAcres: number;
+  emailMock: string | null;
+  phoneMock: string | null;
+  contactCompletenessMock: "complete" | "incomplete";
+  contactEnrichedMock: boolean;
+  contactEnrichedAtMock: string | null;
+};
+
+export type BuildOwnerRowsInput = {
+  owners: OwnerExportRecord[]; // already filtered to the scope by the caller
+  scope: ExportScope;
+  generatedAt: string;
+};
+
+export function buildOwnerRows(input: BuildOwnerRowsInput): string[][] {
+  const { owners, scope, generatedAt } = input;
+  const scopeValue = scopeCell(scope);
+
+  return owners.map((owner) => [
+    csvCell(owner.ownerIdCrm),
+    csvCell(owner.ownerName),
+    csvCell(owner.mailingAddress),
+    csvCell(owner.mailingCityStateZip),
+    csvCell(owner.parcelCount),
+    csvCell(owner.parcelPins.join(";")),
+    csvCell(owner.totalAcres),
+    csvCell(owner.parcelsMissingAcres),
+    csvCell(owner.emailMock),
+    csvCell(owner.phoneMock),
+    csvCell(owner.contactCompletenessMock),
+    csvCell(owner.contactEnrichedMock ? "yes" : "no"),
+    csvCell(owner.contactEnrichedAtMock),
+    csvCell("rock-island-county-gis+parcel-crm-mock"),
+    csvCell(scopeValue),
+    csvCell(generatedAt),
+  ]);
+}
+
+/**
+ * W7 (ISSUE-006 gate). A local, structural type holding exactly the 13 data fields of the
+ * campaign-activity column table — deliberately NOT ISSUE-006's own event/message/campaign
+ * types. `sources.ts` maps one `CampaignEventExportRecord` per `LifecycleEvent` ISSUE-006
+ * shipped, including `followup.scheduled` facts (a real event, even though it does not
+ * establish a `MessageState`): `eventStateMock` carries the mapped `MessageState` when one
+ * exists, or the literal fact-type string otherwise, so no lifecycle event is ever dropped
+ * from "one row per simulated lifecycle event" and no state is ever invented.
+ */
+export type CampaignEventExportRecord = {
+  eventIdMock: string;
+  campaignIdMock: string;
+  campaignNameMock: string;
+  channelMock: string;
+  messageIdMock: string;
+  messageSubjectMock: string | null;
+  messageBodyMock: string;
+  eventStateMock: string;
+  eventAtMock: string;
+  ownerIdCrm: string;
+  ownerName: string;
+  projectIdCrm: string | null;
+  projectNameCrm: string | null;
+};
+
+export type BuildCampaignActivityRowsInput = {
+  events: CampaignEventExportRecord[]; // already filtered to the scope by the caller
+  scope: ExportScope;
+  generatedAt: string;
+};
+
+/**
+ * The one declared normalisation in the whole export: every `\r\n` and `\n` in a mock
+ * message body becomes a single space, so no exported cell ever contains a line break.
+ * Applies to mock text only, never to a county value.
+ */
+function normaliseMessageBody(body: string): string {
+  return body.replace(/\r\n|\n/g, " ");
+}
+
+export function buildCampaignActivityRows(input: BuildCampaignActivityRowsInput): string[][] {
+  const { events, scope, generatedAt } = input;
+  const scopeValue = scopeCell(scope);
+
+  const sorted = [...events].sort((a, b) => {
+    if (a.eventAtMock !== b.eventAtMock) return a.eventAtMock < b.eventAtMock ? -1 : 1;
+    if (a.eventIdMock === b.eventIdMock) return 0;
+    return a.eventIdMock < b.eventIdMock ? -1 : 1;
+  });
+
+  return sorted.map((event) => [
+    csvCell(event.eventIdMock),
+    csvCell(event.campaignIdMock),
+    csvCell(event.campaignNameMock),
+    csvCell(event.channelMock),
+    csvCell(event.messageIdMock),
+    csvCell(event.messageSubjectMock),
+    csvCell(normaliseMessageBody(event.messageBodyMock)),
+    csvCell(event.eventStateMock),
+    csvCell(event.eventAtMock),
+    csvCell(event.ownerIdCrm),
+    csvCell(event.ownerName),
+    csvCell(event.projectIdCrm),
+    csvCell(event.projectNameCrm),
+    csvCell("true"),
+    csvCell("parcel-crm-simulation"),
+    csvCell(scopeValue),
+    csvCell(generatedAt),
+  ]);
+}
