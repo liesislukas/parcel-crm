@@ -189,10 +189,14 @@ test("reopening re-highlights the parcels, and adding one recalculates", async (
 
   await waitForMapReady(page);
   await expect(page.getByTestId("project-mode")).toBeVisible();
-  await expect(page.getByTestId("selection-parcels")).toHaveText(`${createdCount} parcels`);
+  await expect(page.getByTestId("selection-parcels")).toHaveText(
+    `${createdCount} parcel${createdCount === 1 ? "" : "s"}`,
+  );
 
   await page.getByTestId("parcel-map").click();
-  await expect(page.getByTestId("selection-parcels")).toHaveText(`${createdCount + 1} parcels`);
+  await expect(page.getByTestId("selection-parcels")).toHaveText(
+    `${createdCount + 1} parcel${createdCount + 1 === 1 ? "" : "s"}`,
+  );
 
   await page.getByTestId("save-project-selection").click();
   await expect(page.getByTestId("create-project-result")).toContainText("Saved");
