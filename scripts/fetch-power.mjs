@@ -69,7 +69,9 @@ async function postOverpass(query) {
     });
     if (res.ok) return res.json();
     if ((res.status === 429 || res.status === 504) && attempt < 3) {
-      lastErr = new Error(`HTTP ${res.status} ${res.statusText} from Overpass (attempt ${attempt})`);
+      lastErr = new Error(
+        `HTTP ${res.status} ${res.statusText} from Overpass (attempt ${attempt})`,
+      );
       await new Promise((resolve) => setTimeout(resolve, 30_000));
       continue;
     }
