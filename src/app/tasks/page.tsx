@@ -1,8 +1,7 @@
-import { SectionPage } from "@/components/SectionPage";
-import { sections } from "@/lib/nav";
+import { TasksWorkspace } from "@/components/crm/TasksWorkspace";
 
-const section = sections.find((s) => s.slug === "tasks")!;
+export const metadata = { title: "Tasks — Parcel CRM" };
 
 export default function TasksPage() {
-  return <SectionPage section={section} />;
+  return <TasksWorkspace />;
 }

@@ -15,7 +15,7 @@ import {
   readEnrichments,
   type EnrichmentStore,
 } from "@/lib/store";
-import type { ParcelMeta } from "@/components/map/MapWorkspace";
+import type { ParcelMeta } from "@/lib/parcelData";
 import OwnerRecord from "@/components/owners/OwnerRecord";
 
 type CompletenessFilter = "all" | "complete" | "incomplete";
