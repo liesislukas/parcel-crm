@@ -3,6 +3,20 @@
 **Live runtime:** https://parcel-crm-liesislukas-projects.vercel.app/ — public, no credentials,
 no local setup.
 
+## Demo video
+
+[`parcel-crm-demo-video.mp4`](./parcel-crm-demo-video.mp4) — a ~2:35, captioned walkthrough
+recorded headless with Playwright's `chromium` against the deployed URL above, driving the
+assignment README's own Demo Transcript (lines 32–42) end to end: the full-county map with the
+power overlay, the SEEDED demo state, drawing an area and keeping the largest block into a new
+project, `/projects` filters against the seeded rows, the FIRST FINANCIAL GROUP LLC mocked
+buy/enrich flow, the seeded campaign's completed lifecycle and one message's full event
+timeline, setting interest/asking price/stage and assigning a task that then appears under
+`/tasks`, downloading the parcels CSV, and the `/sources` honesty gaps. On-screen captions (no
+audio) state what's being demonstrated, mostly in the transcript's own wording, injected as a
+fixed bar via `page.evaluate` rather than burned in during editing. Recorded against commit
+`d0058cd`.
+
 ![Parcel CRM walkthrough](./parcel-crm-demo.gif)
 
 Recorded against the deployed runtime, not a local build. Every frame is the hosted URL above,
