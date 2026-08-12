@@ -1,12 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { Feature, FeatureCollection, Geometry } from "geojson";
 import { pointInRing, rectRing, type LngLat } from "@/lib/geo";
 import { loadParcelData, type ParcelData } from "@/lib/parcelData";
 import type { Project } from "@/lib/project";
 import { findProject } from "@/lib/projectStore";
+import {
+  toPowerFeature,
+  type PowerFeature,
+  type PowerMeta,
+  type RawPowerProperties,
+} from "@/lib/power";
 import ParcelDetails from "./ParcelDetails";
 import ParcelMap from "./ParcelMap";
+import PowerPanel from "./PowerPanel";
 import SelectionActions from "./SelectionActions";
 import SelectionSummary from "./SelectionSummary";
 
@@ -25,6 +33,16 @@ export default function MapWorkspace() {
   } | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [failed, setFailed] = useState(false);
+
+  const [powerRaw, setPowerRaw] = useState<FeatureCollection | null>(null);
+  const [powerFeatures, setPowerFeatures] = useState<PowerFeature[] | null>(null);
+  const [powerMeta, setPowerMeta] = useState<PowerMeta | null>(null);
+  const [powerFailed, setPowerFailed] = useState(false);
+  const [powerVisible, setPowerVisible] = useState(true);
+  const [fitBbox, setFitBbox] = useState<{
+    bbox: [number, number, number, number];
+    nonce: number;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -77,6 +95,53 @@ export default function MapWorkspace() {
       cancelled = true;
     };
   }, []);
+
+  // A second, separate effect — not merged into the parcel `Promise.all` above. A
+  // power-fetch failure must never blank the parcel map.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const [dataResponse, metaResponse] = await Promise.all([
+          fetch("/data/rock-island-power.json"),
+          fetch("/data/rock-island-power.meta.json"),
+        ]);
+        if (!dataResponse.ok || !metaResponse.ok) throw new Error("power data fetch failed");
+        const collection = (await dataResponse.json()) as FeatureCollection;
+        const metaJson = (await metaResponse.json()) as PowerMeta;
+        if (cancelled) return;
+
+        const mapped = collection.features.map((feature) =>
+          toPowerFeature(feature as Feature<Geometry, RawPowerProperties>),
+        );
+        setPowerRaw(collection);
+        setPowerMeta(metaJson);
+        setPowerFeatures(mapped);
+      } catch {
+        if (!cancelled) setPowerFailed(true);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const powerState = powerFailed
+    ? ({ status: "failed" } as const)
+    : powerFeatures && powerMeta
+      ? ({ status: "ready", features: powerFeatures, meta: powerMeta } as const)
+      : ({ status: "loading" } as const);
+
+  const powerSelection = useMemo(() => {
+    if (!data) return [];
+    return selectedPins.flatMap((pin) => {
+      const centre = data.centroids.get(pin);
+      return centre ? [{ pin, centre }] : [];
+    });
+  }, [selectedPins, data]);
 
   /**
    * Clicking a parcel adds it to the selection and never removes anything. Repeat clicks on
@@ -186,6 +251,26 @@ export default function MapWorkspace() {
         >
           Clear selection
         </button>
+        <button
+          type="button"
+          data-testid="toggle-power"
+          aria-pressed={powerVisible}
+          onClick={() => setPowerVisible((v) => !v)}
+          className={BUTTON_CLASS}
+        >
+          {powerVisible ? "Hide power infrastructure" : "Show power infrastructure"}
+        </button>
+        <button
+          type="button"
+          data-testid="zoom-power"
+          disabled={!powerMeta}
+          onClick={() => {
+            if (powerMeta) setFitBbox({ bbox: powerMeta.bbox, nonce: Date.now() });
+          }}
+          className={BUTTON_CLASS}
+        >
+          Zoom to power infrastructure
+        </button>
       </div>
 
       <ParcelMap
@@ -197,6 +282,9 @@ export default function MapWorkspace() {
         onRectDrawn={handleRectDrawn}
         flyTo={flyTo}
         fitTo={fitTo}
+        power={powerRaw}
+        powerVisible={powerVisible}
+        fitBbox={fitBbox}
       />
 
       {editingProject !== null ? (
@@ -222,8 +310,9 @@ export default function MapWorkspace() {
         onProjectSaved={(p) => setEditingProject(p)}
       />
 
-      <div className="mt-3">
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
         <ParcelDetails parcel={focusedPin ? (data.parcelsByPin.get(focusedPin) ?? null) : null} />
+        <PowerPanel state={powerState} selection={powerSelection} />
       </div>
     </div>
   );
