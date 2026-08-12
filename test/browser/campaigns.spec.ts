@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { disableDemoSeed } from "./demo-seed-off";
 
 /**
  * The campaigns simulation lane. Runs against the deployed URL via `baseURL` in
@@ -7,7 +8,17 @@ import { expect, test, type Page } from "@playwright/test";
  * Every Playwright test gets a fresh `BrowserContext`, so `localStorage` (the only place
  * `src/lib/campaigns/store.ts` persists anything) starts empty in every test. Each test
  * that needs a simulation creates its own via `createAllThree`.
+ *
+ * ISSUE-014 seeds a demo project and a three-channel campaign into every genuinely fresh
+ * browser. `disableDemoSeed` (see `test/browser/demo-seed-off.ts`) opts every test in this
+ * file out of that seed — this file's own assertions (`no-campaigns` on a fresh context,
+ * `toHaveCount(3)` after creating exactly one campaign) require a browser the seed never
+ * touched.
  */
+
+test.beforeEach(async ({ page }) => {
+  await disableDemoSeed(page);
+});
 
 /**
  * `/campaigns` → new campaign → default 8-owner audience → all three channels, then back

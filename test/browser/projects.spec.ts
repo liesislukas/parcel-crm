@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { disableDemoSeed } from "./demo-seed-off";
 
 /**
  * Every test here drives the deployed site. `baseURL` comes from `playwright.config.ts`
@@ -7,6 +8,11 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  * The `waitForMapReady` and `drawRectangle` helpers are copied from `test/browser/map.spec.ts`
  * on purpose — duplicated so the two specs stay independently readable, rather than sharing a
  * helper module.
+ *
+ * ISSUE-014 seeds a demo project into every genuinely fresh browser. `disableDemoSeed` opts
+ * every test in this file out of that seed, so its own `page.evaluate` +
+ * `removeItem("parcel-crm.projects.v1")` + `page.reload()` sequence below still reaches an
+ * honestly-empty `/projects`.
  */
 
 async function waitForMapReady(page: Page): Promise<Locator> {
@@ -72,6 +78,7 @@ async function drawRectangle(
 }
 
 test.beforeEach(async ({ page }) => {
+  await disableDemoSeed(page);
   await page.goto("/");
   await page.evaluate(() => window.localStorage.removeItem("parcel-crm.projects.v1"));
   await page.reload();

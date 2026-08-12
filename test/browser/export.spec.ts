@@ -1,11 +1,22 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import { disableDemoSeed } from "./demo-seed-off";
 
 /**
  * Every test here drives the deployed site. `baseURL` comes from `playwright.config.ts`
  * and never points at a local server — a localhost result is worth zero
  * (`.agents/rules/deployed-runtime-first.mdc`).
+ *
+ * ISSUE-014 seeds a demo project and campaign into every genuinely fresh browser.
+ * `disableDemoSeed` (see `test/browser/demo-seed-off.ts`) opts every test in this file out
+ * of that seed: the campaign-activity export's `getAttribute` lookup on
+ * `[data-testid="campaign-card"][data-channel="email"]` is a strict-mode violation once a
+ * seeded email card exists alongside `seedOneCampaign`'s own.
  */
+
+test.beforeEach(async ({ page }) => {
+  await disableDemoSeed(page);
+});
 
 /**
  * campaign-activity is built from `src/lib/campaigns/store.ts`'s `localStorage`-backed

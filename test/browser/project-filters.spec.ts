@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { disableDemoSeed } from "./demo-seed-off";
 
 /**
  * Runs against the deployed URL via `baseURL`. Never a local server.
@@ -68,7 +69,15 @@ async function seedProjects(page: Page): Promise<void> {
 
 const POWER_UNKNOWN_LABEL = "Unknown — no power distance available for this project";
 
+/**
+ * ISSUE-014's demo seed is load-bearing to disable here: `"Showing 5 of 5 projects"` would
+ * break with a sixth or seventh seeded row, and `filter-unknown-rawstage`'s `banana`
+ * assertion only holds while `parcel-crm.acquisition.v1` is absent — `ensureDemoSeed` would
+ * otherwise materialise it and push fixture `p5` down `toFilterableStage`'s rung 2 to
+ * `not-contacted`.
+ */
 test.beforeEach(async ({ page }) => {
+  await disableDemoSeed(page);
   await seedProjects(page);
   await page.goto("/projects");
   await expect(page.getByTestId("filter-bar")).toBeVisible();
