@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 import {
   formatAcres,
   formatMoney,
@@ -149,6 +150,23 @@ export default function ParcelDetails({ parcel }: { parcel: Parcel | null }) {
           )}
         </div>
       </dl>
+
+      {parcel.owner.present ? (
+        <Link
+          href={`/owners?owner=${encodeURIComponent(parcel.owner.value)}`}
+          data-testid="open-owner-record"
+          className="mt-3 inline-block rounded-md border border-black/20 px-3 py-1.5 text-sm dark:border-white/25"
+        >
+          Open owner record
+        </Link>
+      ) : (
+        <p
+          data-testid="open-owner-record-unavailable"
+          className="mt-3 text-xs text-black/45 dark:text-white/45"
+        >
+          No owner name in the source — this parcel has no CRM owner record.
+        </p>
+      )}
 
       <p className="mt-4 text-xs text-black/45 dark:text-white/45">
         Fields shown come from the Rock Island County GIS parcel layer as published. Values are
