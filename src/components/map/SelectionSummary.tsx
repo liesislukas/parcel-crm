@@ -1,6 +1,6 @@
 "use client";
 
-import type { ParcelMeta } from "./MapWorkspace";
+import type { ParcelMeta } from "@/lib/parcelData";
 
 type SelectionSummaryProps = {
   count: number;
@@ -27,6 +27,11 @@ export default function SelectionSummary({ count, meta, onShowIncomplete }: Sele
       </p>
       <p className="text-black/60 dark:text-white/60">
         Selected: parcels whose centre point falls inside the drawn shape.
+      </p>
+      <p className="text-black/60 dark:text-white/60">
+        Click a parcel to add it to the selection — clicking never clears what you already have. Use
+        Draw area, then drag a box, to replace the selection with everything inside it. Dragging
+        without Draw area pans the map.
       </p>
       <p className="mt-2 font-semibold">
         Working subset — {meta.parcelCount.toLocaleString("en-US")} of{" "}

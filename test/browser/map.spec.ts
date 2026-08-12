@@ -192,6 +192,8 @@ test("clearing and redrawing replaces the previous selection", async ({ page }) 
   const first = await selectionCount(page);
   expect(first).toBeGreaterThan(1);
 
+  // Clearing 2+ parcels now asks for confirmation — see ISSUE-004 WI-5.
+  page.once("dialog", (dialog) => dialog.accept());
   await page.getByTestId("clear-selection").click();
   await expect(page.getByTestId("selection-count")).toHaveText("0 parcels selected");
 
