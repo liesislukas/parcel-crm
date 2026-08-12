@@ -98,3 +98,62 @@ test("the export legend states the provenance scheme", async ({ page }) => {
   await expect(legend).toContainText("_crm");
   await expect(legend).toContainText("never rounded, reformatted, or defaulted");
 });
+
+// W8 (ISSUE-004 gate): scoping an export to one saved project.
+test("scoping to a saved project narrows the export and renames the file", async ({ page }) => {
+  await page.goto("/export");
+
+  const scopeSelect = page.getByTestId("export-scope");
+  const optionCount = await scopeSelect.locator("option").count();
+  if (optionCount <= 1) {
+    test.skip(true, "no saved projects — the scope select only has the 'all' option");
+    return;
+  }
+
+  // The unscoped baseline, to compare row counts against. Prefer campaign-activity,
+  // falling back to parcels if that card is disabled.
+  const campaignButton = page.getByTestId("download-campaign-activity");
+  const parcelsButton = page.getByTestId("download-parcels");
+  const useCampaignActivity = !(await campaignButton.isDisabled());
+  const baselineButton = useCampaignActivity ? campaignButton : parcelsButton;
+  const datasetId = useCampaignActivity ? "campaign-activity" : "parcels";
+
+  const [unscopedDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    baselineButton.click(),
+  ]);
+  const unscopedPath = await unscopedDownload.path();
+  expect(unscopedPath).not.toBeNull();
+  const unscopedContent = readFileSync(unscopedPath!, "utf-8").slice(1);
+  const unscopedRowCount = unscopedContent.split("\r\n").slice(1, -1).length;
+
+  // Select the second <option> (the first saved project after "all").
+  const secondOptionValue = await scopeSelect.locator("option").nth(1).getAttribute("value");
+  expect(secondOptionValue).not.toBeNull();
+  await scopeSelect.selectOption(secondOptionValue!);
+
+  const scopedButton = useCampaignActivity ? campaignButton : parcelsButton;
+  const [scopedDownload] = await Promise.all([page.waitForEvent("download"), scopedButton.click()]);
+
+  expect(scopedDownload.suggestedFilename()).toMatch(
+    new RegExp(`^parcel-crm_${datasetId}_project-[a-z0-9-]+_\\d{4}-\\d{2}-\\d{2}\\.csv$`),
+  );
+
+  const scopedPath = await scopedDownload.path();
+  expect(scopedPath).not.toBeNull();
+  const scopedContent = readFileSync(scopedPath!, "utf-8").slice(1);
+  const scopedLines = scopedContent.split("\r\n");
+  const scopedDataLines = scopedLines.slice(1, -1);
+  const scopedHeader = scopedLines[0].split(",");
+  const scopeColumnIndex = scopedHeader.indexOf("export_scope");
+  expect(scopeColumnIndex).toBeGreaterThanOrEqual(0);
+
+  const slugMatch = scopedDownload.suggestedFilename().match(/project-([a-z0-9-]+)_/);
+  expect(slugMatch).not.toBeNull();
+  const expectedScopeCell = `project:${slugMatch![1]}`;
+  for (const line of scopedDataLines) {
+    expect(line.split(",")[scopeColumnIndex]).toBe(expectedScopeCell);
+  }
+
+  expect(scopedDataLines.length).toBeLessThan(unscopedRowCount);
+});
