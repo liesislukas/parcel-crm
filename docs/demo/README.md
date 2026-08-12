@@ -24,11 +24,6 @@ serving the full-county build (commit `d9fdf88`): all 65,955 parcels, the county
 the 2,000-parcel selection guard, the seeded demo state with its restore control, and a saved
 assemblage reopening with its members framed and highlighted.
 
-> **Re-record needed (2026-08-12).** ISSUE-013 raised coverage from the 6,026-parcel working
-> subset to all 65,955 county records, so the walkthrough above still shows the old subset
-> framing and the old banner text. The numbered description below has been corrected to what
-> the deployed runtime does now; the GIF itself has not yet been re-recorded.
-
 ## What the walkthrough shows
 
 1. **The map with the power overlay on** — 65,955 real Rock Island County parcel records, 65,953
