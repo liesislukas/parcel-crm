@@ -5,7 +5,7 @@ import type { Feature, FeatureCollection, Geometry } from "geojson";
 import { pointInRing, rectRing, type LngLat } from "@/lib/geo";
 import { loadParcelData, type ParcelData } from "@/lib/parcelData";
 import type { Project } from "@/lib/project";
-import { findProject } from "@/lib/projectStore";
+import { findProject, resolveProjectParcelIds } from "@/lib/projectStore";
 import {
   toPowerFeature,
   type PowerFeature,
@@ -18,13 +18,21 @@ import PowerPanel from "./PowerPanel";
 import SelectionActions from "./SelectionActions";
 import SelectionSummary from "./SelectionSummary";
 
+/**
+ * A drag across the whole county would resolve to all 65,953 mapped parcels, which is not a
+ * land assembly — it is an accident. Past this many parcels the draw is refused outright and
+ * the previous selection is left intact, rather than silently freezing the tab.
+ */
+const MAX_DRAW_SELECTION = 2000;
+
 const BUTTON_CLASS =
   "rounded-md border border-black/20 px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-45 dark:border-white/25";
 
 export default function MapWorkspace() {
   const [data, setData] = useState<ParcelData | null>(null);
-  const [selectedPins, setSelectedPins] = useState<string[]>([]);
-  const [focusedPin, setFocusedPin] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [drawLimitMessage, setDrawLimitMessage] = useState<string | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [flyTo, setFlyTo] = useState<{ center: LngLat; zoom: number; nonce: number } | null>(null);
   const [fitTo, setFitTo] = useState<{
@@ -61,16 +69,20 @@ export default function MapWorkspace() {
         const project = findProject(id);
         if (project === null) return;
 
-        const present = project.pins.filter((p) => loaded.parcelsByPin.has(p));
-        setSelectedPins(present);
+        // A project saved before ISSUE-013 holds PINs; resolveProjectParcelIds maps them to
+        // ids, expanding a colliding PIN to every record it names.
+        const present = resolveProjectParcelIds(project, loaded.idsByPin).filter((id) =>
+          loaded.parcelsById.has(id),
+        );
+        setSelectedIds(present);
         setEditingProject(project);
 
         let west = Infinity;
         let south = Infinity;
         let east = -Infinity;
         let north = -Infinity;
-        for (const pin of present) {
-          const centre = loaded.centroids.get(pin);
+        for (const id of present) {
+          const centre = loaded.centroids.get(id);
           if (!centre) continue;
           west = Math.min(west, centre.lng);
           south = Math.min(south, centre.lat);
@@ -137,22 +149,23 @@ export default function MapWorkspace() {
 
   const powerSelection = useMemo(() => {
     if (!data) return [];
-    return selectedPins.flatMap((pin) => {
-      const centre = data.centroids.get(pin);
-      return centre ? [{ pin, centre }] : [];
+    return selectedIds.flatMap((id) => {
+      const centre = data.centroids.get(id);
+      const parcel = data.parcelsById.get(id);
+      return centre && parcel ? [{ pin: parcel.pin, centre }] : [];
     });
-  }, [selectedPins, data]);
+  }, [selectedIds, data]);
 
   /**
    * Clicking a parcel adds it to the selection and never removes anything. Repeat clicks on
    * the same parcel are idempotent (it stays selected and becomes the focused parcel whose
    * details show). This is deliberate: a plain click used to replace the whole multi-parcel
    * selection, which silently dropped a selection a user had already built up. Removing a
-   * parcel is now an explicit action via `handleRemovePin`.
+   * parcel is now an explicit action via `handleRemoveId`.
    */
-  function handleParcelClick(pin: string) {
-    setSelectedPins((prev) => (prev.includes(pin) ? prev : [...prev, pin]));
-    setFocusedPin(pin);
+  function handleParcelClick(id: string) {
+    setSelectedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    setFocusedId(id);
   }
 
   /**
@@ -160,52 +173,66 @@ export default function MapWorkspace() {
    * point falls inside the drawn shape. Drawing a new shape replaces the previous selection —
    * unchanged from before, and it is an explicit two-step action (toggle Draw area, then
    * drag), so it is not a silent-loss path the way a plain click used to be.
+   *
+   * The hit test runs against the centroid precomputed at extract time, never against
+   * `queryRenderedFeatures`. That is what makes the result zoom-independent: tile
+   * simplification cannot move a parcel in or out of the drawn rectangle.
    */
   function handleRectDrawn(a: LngLat, b: LngLat) {
     if (!data) return;
     const ring = rectRing(a, b);
-    const hit = data.parcels
-      .filter((p) => {
-        const centre = data.centroids.get(p.pin);
-        return centre ? pointInRing(centre, ring) : false;
-      })
-      .map((p) => p.pin);
-    setSelectedPins(hit);
-    setFocusedPin(null);
+    const hit: string[] = [];
+    for (const parcel of data.parcels) {
+      const centre = parcel.centroid;
+      if (centre && pointInRing(centre, ring)) hit.push(parcel.id);
+    }
     setDrawing(false);
+    if (hit.length > MAX_DRAW_SELECTION) {
+      setDrawLimitMessage(
+        `That area contains ${hit.length.toLocaleString("en-US")} parcels — more than the ` +
+          `${MAX_DRAW_SELECTION.toLocaleString("en-US")}-parcel limit for one selection. ` +
+          `Zoom in or draw a smaller area.`,
+      );
+      return;
+    }
+    setDrawLimitMessage(null);
+    setSelectedIds(hit);
+    setFocusedId(null);
   }
 
   /**
-   * Only 6 of the 6,026 loaded parcels have a blank source field, so a reviewer clicking
-   * at random would essentially never reach one. `incompletePins` is written sorted
-   * ascending by the fetch script, so the first entry is deterministic.
+   * 205 of the 65,955 loaded parcels have a blank source field, so a reviewer clicking at
+   * random would essentially never reach one. `incompletePins` is written sorted ascending
+   * by the fetch script, so the first entry is deterministic.
    */
   function handleShowIncomplete() {
     if (!data) return;
     const pin = data.meta.incompletePins[0];
     if (!pin) return;
-    setSelectedPins((prev) => (prev.includes(pin) ? prev : [...prev, pin]));
-    setFocusedPin(pin);
-    const centre = data.centroids.get(pin);
+    const id = data.idsByPin.get(pin)?.[0];
+    if (!id) return;
+    setSelectedIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    setFocusedId(id);
+    const centre = data.centroids.get(id);
     if (centre) setFlyTo({ center: centre, zoom: 15, nonce: Date.now() });
   }
 
   /** The explicit removal path — also the AC6 removal half. */
-  function handleRemovePin(pin: string) {
-    setSelectedPins((prev) => prev.filter((p) => p !== pin));
-    setFocusedPin((current) => (current === pin ? null : current));
+  function handleRemoveId(id: string) {
+    setSelectedIds((prev) => prev.filter((p) => p !== id));
+    setFocusedId((current) => (current === id ? null : current));
   }
 
   /** `Clear selection` asks for confirmation when 2 or more parcels are selected. */
   function handleClearSelection() {
-    if (selectedPins.length >= 2) {
+    if (selectedIds.length >= 2) {
       const ok = window.confirm(
-        "Clear all " + selectedPins.length + " selected parcels? This cannot be undone.",
+        "Clear all " + selectedIds.length + " selected parcels? This cannot be undone.",
       );
       if (!ok) return;
     }
-    setSelectedPins([]);
-    setFocusedPin(null);
+    setSelectedIds([]);
+    setFocusedId(null);
   }
 
   if (failed) {
@@ -227,8 +254,9 @@ export default function MapWorkspace() {
   return (
     <div className="mt-4">
       <SelectionSummary
-        count={selectedPins.length}
+        count={selectedIds.length}
         meta={data.meta}
+        drawLimitMessage={drawLimitMessage}
         onShowIncomplete={handleShowIncomplete}
       />
 
@@ -246,7 +274,7 @@ export default function MapWorkspace() {
           type="button"
           data-testid="clear-selection"
           onClick={handleClearSelection}
-          disabled={selectedPins.length === 0}
+          disabled={selectedIds.length === 0}
           className={BUTTON_CLASS}
         >
           Clear selection
@@ -274,9 +302,9 @@ export default function MapWorkspace() {
       </div>
 
       <ParcelMap
-        data={data.raw}
+        tiles={data.meta.tiles}
         bbox={data.meta.bbox}
-        selectedPins={selectedPins}
+        selectedIds={selectedIds}
         drawing={drawing}
         onParcelClick={handleParcelClick}
         onRectDrawn={handleRectDrawn}
@@ -297,21 +325,21 @@ export default function MapWorkspace() {
       ) : null}
 
       <SelectionActions
-        selectedPins={selectedPins}
-        parcelsByPin={data.parcelsByPin}
+        selectedIds={selectedIds}
+        parcelsById={data.parcelsById}
         adjacency={data.adjacency}
-        onRemovePin={handleRemovePin}
-        onFocusPin={setFocusedPin}
-        onReplaceSelection={(pins) => {
-          setSelectedPins(pins);
-          setFocusedPin(null);
+        onRemoveId={handleRemoveId}
+        onFocusId={setFocusedId}
+        onReplaceSelection={(ids) => {
+          setSelectedIds(ids);
+          setFocusedId(null);
         }}
         editingProject={editingProject}
         onProjectSaved={(p) => setEditingProject(p)}
       />
 
       <div className="mt-3 grid gap-3 lg:grid-cols-2">
-        <ParcelDetails parcel={focusedPin ? (data.parcelsByPin.get(focusedPin) ?? null) : null} />
+        <ParcelDetails parcel={focusedId ? (data.parcelsById.get(focusedId) ?? null) : null} />
         <PowerPanel state={powerState} selection={powerSelection} />
       </div>
     </div>

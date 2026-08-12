@@ -7,18 +7,22 @@ import type { ParcelMeta } from "@/lib/parcelData";
 type SelectionSummaryProps = {
   count: number;
   meta: ParcelMeta;
+  drawLimitMessage: string | null;
   onShowIncomplete: () => void;
 };
 
 /**
  * The honesty panel. Every number is interpolated from the committed meta file — nothing
  * here is hardcoded — and the scope lines are always visible rather than tucked behind a
- * disclosure, so a reviewer can see at a glance that this is a labelled working subset and
- * not a silent partial load.
+ * disclosure, so a reviewer can see at a glance exactly what this build holds: the whole
+ * county, and the two records inside it that the county publishes without an outline.
  */
-export default function SelectionSummary({ count, meta, onShowIncomplete }: SelectionSummaryProps) {
-  const notLoaded = meta.countyParcelCount - meta.parcelCount;
-
+export default function SelectionSummary({
+  count,
+  meta,
+  drawLimitMessage,
+  onShowIncomplete,
+}: SelectionSummaryProps) {
   return (
     <div
       data-testid="selection-summary"
@@ -35,18 +39,25 @@ export default function SelectionSummary({ count, meta, onShowIncomplete }: Sele
         Draw area, then drag a box, to replace the selection with everything inside it. Dragging
         without Draw area pans the map.
       </p>
+      {drawLimitMessage !== null ? (
+        <p data-testid="draw-limit" className="mt-2 font-semibold">
+          {drawLimitMessage}
+        </p>
+      ) : null}
       <p className="mt-2 font-semibold">
-        Working subset — {meta.parcelCount.toLocaleString("en-US")} of{" "}
+        Full county coverage — {meta.parcelCount.toLocaleString("en-US")} of{" "}
         {meta.countyParcelCount.toLocaleString("en-US")} Rock Island County parcels loaded.
       </p>
       <p className="text-black/60 dark:text-white/60">
-        Bounded area: {meta.bboxLabel} ({meta.areaLabel}). Parcels intersecting this box are
-        included, so a few extend past its edge.
+        {meta.mappedParcelCount.toLocaleString("en-US")} of these have a mapped outline and can be
+        clicked, selected and grouped. {meta.unmappedPins.length} records publish an empty polygon
+        ring at source and cannot be drawn or added to a project: PIN {meta.unmappedPins.join(", ")}.
+        Their ownership, value and mailing fields are loaded and searchable.
       </p>
       <p className="text-black/60 dark:text-white/60">
-        Source: {meta.sourceOrg} parcel layer (ArcGIS FeatureServer), retrieved{" "}
-        {new Date(meta.retrievedAt).toISOString().slice(0, 10)}. The remaining{" "}
-        {notLoaded.toLocaleString("en-US")} county parcels are not loaded in this build.{" "}
+        Source: {meta.sourceOrg} parcel layer (ArcGIS FeatureServer), full county extent{" "}
+        {meta.bboxLabel}, retrieved {new Date(meta.retrievedAt).toISOString().slice(0, 10)}. Licence:{" "}
+        {meta.sourceLicense}.{" "}
         <a href={meta.sourceLayerUrl} target="_blank" rel="noreferrer" className="underline">
           View source layer
         </a>{" "}

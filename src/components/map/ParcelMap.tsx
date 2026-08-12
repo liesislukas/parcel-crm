@@ -4,14 +4,15 @@ import { useEffect, useRef } from "react";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { FeatureCollection } from "geojson";
+import { Protocol } from "pmtiles";
 import { rectRing, ringToGeoJsonPolygon, type LngLat } from "@/lib/geo";
 
 type ParcelMapProps = {
-  data: FeatureCollection;
+  tiles: { path: string; layer: string; idProperty: string };
   bbox: [number, number, number, number];
-  selectedPins: string[];
+  selectedIds: string[];
   drawing: boolean;
-  onParcelClick: (pin: string) => void;
+  onParcelClick: (id: string) => void;
   onRectDrawn: (a: LngLat, b: LngLat) => void;
   flyTo: { center: LngLat; zoom: number; nonce: number } | null;
   fitTo: { bbox: [number, number, number, number]; nonce: number } | null;
@@ -56,9 +57,14 @@ const KEYLESS_STYLE = {
  */
 maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
 
-function selectionFilter(pins: string[]): maplibregl.FilterSpecification {
-  return ["in", ["get", "PIN"], ["literal", pins]];
-}
+/**
+ * maplibre-gl@6.3.0 has no native PMTiles support — the only `pmtiles` string in its type
+ * definitions is a documentation link. `addProtocol` is the supported extension point, and
+ * `pmtiles@4.5.0` supplies the reader that answers those requests with HTTP Range fetches
+ * against the single committed 15.8 MB archive.
+ */
+const pmtilesProtocol = new Protocol();
+maplibregl.addProtocol("pmtiles", pmtilesProtocol.tile);
 
 export default function ParcelMap(props: ParcelMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -69,9 +75,12 @@ export default function ParcelMap(props: ParcelMapProps) {
   // in a `[]`-deps effect, so every handler would otherwise close over the first render's
   // props forever. Refs updated after each commit keep them current without ever
   // recreating the map.
-  const dataRef = useRef(props.data);
+  const tilesRef = useRef(props.tiles);
   const bboxRef = useRef(props.bbox);
-  const selectedPinsRef = useRef(props.selectedPins);
+  // What the map currently has flagged, so the selection effect only writes the difference.
+  const selectedIdsRef = useRef<Set<string>>(new Set());
+  // What the props currently ask for, read by `init` when a selection predates style.load.
+  const wantedIdsRef = useRef(props.selectedIds);
   const drawingRef = useRef(props.drawing);
   const onParcelClickRef = useRef(props.onParcelClick);
   const onRectDrawnRef = useRef(props.onRectDrawn);
@@ -88,9 +97,9 @@ export default function ParcelMap(props: ParcelMapProps) {
   const suppressClickRef = useRef(false);
 
   useEffect(() => {
-    dataRef.current = props.data;
+    tilesRef.current = props.tiles;
     bboxRef.current = props.bbox;
-    selectedPinsRef.current = props.selectedPins;
+    wantedIdsRef.current = props.selectedIds;
     drawingRef.current = props.drawing;
     onParcelClickRef.current = props.onParcelClick;
     onRectDrawnRef.current = props.onRectDrawn;
@@ -109,8 +118,10 @@ export default function ParcelMap(props: ParcelMapProps) {
     const map = new maplibregl.Map({
       container,
       style: KEYLESS_STYLE,
-      center: [-90.56, 41.505],
-      zoom: 13,
+      // County centre and a county-scale zoom, so the very first paint is already the whole
+      // county rather than one neighbourhood; `fitBounds` below then frames it exactly.
+      center: [-90.6148, 41.5485],
+      zoom: 9,
       // The built-in control is suppressed so the explicit `compact: false` one below is
       // the only attribution on the map. Two controls would duplicate the notice, and the
       // built-in one auto-collapses at narrow widths.
@@ -160,37 +171,50 @@ export default function ParcelMap(props: ParcelMapProps) {
       layersReady = true;
       loadedRef.current = true;
 
+      const tiles = tilesRef.current;
+
+      // All 65,953 mapped parcels, as vector tiles read straight from the committed archive.
+      // `promoteId` lifts the numeric OBJECTID out of the properties into the feature id,
+      // which is what makes feature-state highlighting possible.
       map.addSource("parcels", {
-        type: "geojson",
-        data: dataRef.current,
-        promoteId: "PIN",
+        type: "vector",
+        url: `pmtiles://${tiles.path}`,
+        promoteId: { [tiles.layer]: tiles.idProperty },
       });
 
+      // The highlight rides on feature-state rather than on two extra filtered layers. A
+      // filter of the form ["in", ["get","PIN"], ["literal", ids]] is O(selected x features)
+      // and stalls at county scale; feature-state is a per-feature flag MapLibre keeps for
+      // the source and re-applies to tiles that load later, so panning keeps the highlight.
       map.addLayer({
         id: "parcels-fill",
         type: "fill",
         source: "parcels",
-        paint: { "fill-color": "#94a3b8", "fill-opacity": 0.25 },
+        "source-layer": tiles.layer,
+        paint: {
+          "fill-color": [
+            "case",
+            ["boolean", ["feature-state", "selected"], false],
+            "#f97316",
+            "#94a3b8",
+          ],
+          "fill-opacity": ["case", ["boolean", ["feature-state", "selected"], false], 0.55, 0.25],
+        },
       });
       map.addLayer({
         id: "parcels-line",
         type: "line",
         source: "parcels",
-        paint: { "line-color": "#475569", "line-width": 0.5 },
-      });
-      map.addLayer({
-        id: "parcels-selected-fill",
-        type: "fill",
-        source: "parcels",
-        paint: { "fill-color": "#f97316", "fill-opacity": 0.55 },
-        filter: selectionFilter([]),
-      });
-      map.addLayer({
-        id: "parcels-selected-line",
-        type: "line",
-        source: "parcels",
-        paint: { "line-color": "#c2410c", "line-width": 2 },
-        filter: selectionFilter([]),
+        "source-layer": tiles.layer,
+        paint: {
+          "line-color": [
+            "case",
+            ["boolean", ["feature-state", "selected"], false],
+            "#c2410c",
+            "#475569",
+          ],
+          "line-width": ["case", ["boolean", ["feature-state", "selected"], false], 2, 0.5],
+        },
       });
 
       // Power infrastructure sits above the parcels and below the rubber band, so the
@@ -249,9 +273,13 @@ export default function ParcelMap(props: ParcelMapProps) {
       );
 
       // A selection may already exist by the time the style finishes loading.
-      const filter = selectionFilter(selectedPinsRef.current);
-      map.setFilter("parcels-selected-fill", filter);
-      map.setFilter("parcels-selected-line", filter);
+      for (const id of wantedIdsRef.current) {
+        map.setFeatureState(
+          { source: "parcels", sourceLayer: tiles.layer, id: Number(id) },
+          { selected: true },
+        );
+        selectedIdsRef.current.add(id);
+      }
 
       // Proof, from the DOM, that the power layers were actually created — a silently
       // absent layer paints a healthy map and logs nothing (the defect class recorded in
@@ -277,9 +305,10 @@ export default function ParcelMap(props: ParcelMapProps) {
         suppressClickRef.current = false;
         return;
       }
-      const pin = e.features?.[0]?.properties?.PIN;
-      if (pin === null || pin === undefined) return;
-      onParcelClickRef.current(String(pin));
+      const feature = e.features?.[0];
+      const id = feature?.id ?? feature?.properties?.id;
+      if (id === null || id === undefined) return;
+      onParcelClickRef.current(String(id));
     });
 
     map.on("mouseenter", "parcels-fill", () => {
@@ -347,15 +376,30 @@ export default function ParcelMap(props: ParcelMapProps) {
     }
   }, [props.drawing]);
 
-  // The highlight. One declarative filter call per layer, driven by the same array that
-  // produces the on-screen count, so the highlighted set and the count cannot drift.
+  // The highlight. Driven by the same array that produces the on-screen count, so the
+  // highlighted set and the count cannot drift. Only the difference is written: ids are
+  // flagged as they are added and cleared as they are removed. The tile ids are numbers.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !loadedRef.current) return;
-    const filter = selectionFilter(props.selectedPins);
-    map.setFilter("parcels-selected-fill", filter);
-    map.setFilter("parcels-selected-line", filter);
-  }, [props.selectedPins]);
+    const sourceLayer = props.tiles.layer;
+    const next = new Set(props.selectedIds);
+    const previous = selectedIdsRef.current;
+
+    for (const id of next) {
+      if (previous.has(id)) continue;
+      map.setFeatureState(
+        { source: "parcels", sourceLayer, id: Number(id) },
+        { selected: true },
+      );
+    }
+    for (const id of previous) {
+      if (next.has(id)) continue;
+      map.removeFeatureState({ source: "parcels", sourceLayer, id: Number(id) }, "selected");
+    }
+
+    selectedIdsRef.current = next;
+  }, [props.selectedIds, props.tiles.layer]);
 
   // `nonce` exists so asking for the same parcel twice still re-flies.
   const flyNonce = props.flyTo?.nonce;

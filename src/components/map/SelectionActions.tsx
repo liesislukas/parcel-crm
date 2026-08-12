@@ -9,16 +9,20 @@ import {
   type Project,
   type ProjectStats,
 } from "@/lib/project";
-import { createProject, replaceProjectPins, STORAGE_UNAVAILABLE_MESSAGE } from "@/lib/projectStore";
+import {
+  createProject,
+  replaceProjectParcelIds,
+  STORAGE_UNAVAILABLE_MESSAGE,
+} from "@/lib/projectStore";
 import type { AdjacencyIndex } from "@/lib/adjacency";
 
 type SelectionActionsProps = {
-  selectedPins: string[];
-  parcelsByPin: ReadonlyMap<string, Parcel>;
+  selectedIds: string[];
+  parcelsById: ReadonlyMap<string, Parcel>;
   adjacency: AdjacencyIndex;
-  onRemovePin: (pin: string) => void;
-  onFocusPin: (pin: string) => void;
-  onReplaceSelection: (pins: string[]) => void;
+  onRemoveId: (id: string) => void;
+  onFocusId: (id: string) => void;
+  onReplaceSelection: (ids: string[]) => void;
   editingProject?: Project | null;
   onProjectSaved?: (project: Project) => void;
 };
@@ -40,17 +44,17 @@ export default function SelectionActions(props: SelectionActionsProps) {
   const [name, setName] = useState("");
   const [result, setResult] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
 
-  const stats = computeProjectStats(props.selectedPins, props.parcelsByPin, props.adjacency);
+  const stats = computeProjectStats(props.selectedIds, props.parcelsById, props.adjacency);
 
   function handleCreate() {
     try {
       const project = createProject(
         name.trim(),
-        stats.members.map((m) => m.pin),
+        stats.members.map((m) => m.id),
       );
       setResult({
         kind: "ok",
-        text: `Created “${project.name}” — ${project.pins.length} parcels, ${formatAcres(stats.combinedAcres)}, ${contiguityLabel(stats.blocks.length)}.`,
+        text: `Created “${project.name}” — ${project.parcelIds.length} parcels, ${formatAcres(stats.combinedAcres)}, ${contiguityLabel(stats.blocks.length)}.`,
       });
       setName("");
     } catch {
@@ -62,9 +66,9 @@ export default function SelectionActions(props: SelectionActionsProps) {
     const editingProject = props.editingProject;
     if (!editingProject) return;
     try {
-      const updated = replaceProjectPins(
+      const updated = replaceProjectParcelIds(
         editingProject.id,
-        stats.members.map((m) => m.pin),
+        stats.members.map((m) => m.id),
       );
       if (updated === null) {
         setResult({ kind: "error", text: "That project is no longer saved in this browser." });
@@ -73,7 +77,7 @@ export default function SelectionActions(props: SelectionActionsProps) {
       props.onProjectSaved?.(updated);
       setResult({
         kind: "ok",
-        text: `Saved “${updated.name}” — ${updated.pins.length} parcels, ${formatAcres(stats.combinedAcres)}, ${contiguityLabel(stats.blocks.length)}.`,
+        text: `Saved “${updated.name}” — ${updated.parcelIds.length} parcels, ${formatAcres(stats.combinedAcres)}, ${contiguityLabel(stats.blocks.length)}.`,
       });
     } catch {
       setResult({ kind: "error", text: STORAGE_UNAVAILABLE_MESSAGE });
@@ -122,10 +126,10 @@ export default function SelectionActions(props: SelectionActionsProps) {
           excluded from the total.
         </p>
       ) : null}
-      {stats.missingPins.length > 0 ? (
+      {stats.missingIds.length > 0 ? (
         <p data-testid="missing-pins-note" className={NOTE_CLASS}>
-          {stats.missingPins.length} member parcel ID(s) are not in the loaded working subset and
-          are excluded: {stats.missingPins.join(", ")}.
+          {stats.missingIds.length} member parcel record(s) are no longer in the loaded county data
+          and are excluded from these figures.
         </p>
       ) : null}
       <p data-testid="owner-count-note" className={NOTE_CLASS}>
@@ -146,11 +150,11 @@ export default function SelectionActions(props: SelectionActionsProps) {
 
       <ul data-testid="member-list" className="mt-3 max-h-64 overflow-y-auto">
         {stats.members.map((parcel) => (
-          <li key={parcel.pin} data-testid="member-row" data-pin={parcel.pin}>
+          <li key={parcel.id} data-testid="member-row" data-pin={parcel.pin}>
             <button
               type="button"
               data-testid="member-pin"
-              onClick={() => props.onFocusPin(parcel.pin)}
+              onClick={() => props.onFocusId(parcel.id)}
               className="font-mono underline"
             >
               {parcel.pin}
@@ -164,7 +168,7 @@ export default function SelectionActions(props: SelectionActionsProps) {
             <button
               type="button"
               data-testid="remove-member"
-              onClick={() => props.onRemovePin(parcel.pin)}
+              onClick={() => props.onRemoveId(parcel.id)}
             >
               Remove
             </button>
