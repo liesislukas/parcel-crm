@@ -124,17 +124,19 @@ function RecordView({
         <span className="text-xs tracking-wide text-black/55 uppercase dark:text-white/55">
           {ENTITY_TYPE_LABEL[entityType]}
         </span>
-        <h1 data-testid="record-title" className="text-xl font-semibold">
-          {record.entity.label}
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 data-testid="record-title" className="text-xl font-semibold">
+            {record.entity.label}
+          </h1>
           {record.seeded ? (
             <span
-              className={`ml-2 ${BADGE_CLASS} bg-black/[.06] text-black/55 dark:bg-white/[.10] dark:text-white/55`}
+              className={`${BADGE_CLASS} bg-black/[.06] text-black/55 dark:bg-white/[.10] dark:text-white/55`}
               title="Seeded demo record — not entered by a user of this deployment"
             >
               SEEDED
             </span>
           ) : null}
-        </h1>
+        </div>
         <p data-testid="record-detail" className="text-sm text-black/60 dark:text-white/60">
           {record.entity.detail}
         </p>

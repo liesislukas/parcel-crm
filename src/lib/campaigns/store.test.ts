@@ -219,7 +219,11 @@ describe("scheduleFollowUp", () => {
     expect(bounced).toBeDefined();
 
     const beforeCount = state.messages.filter((m) => m.campaignId === emailCampaign.id).length;
-    const result = scheduleFollowUp(bounced.id, "direct_mail", "Bounced — retry on another channel.");
+    const result = scheduleFollowUp(
+      bounced.id,
+      "direct_mail",
+      "Bounced — retry on another channel.",
+    );
     expect(result.ok).toBe(true);
 
     const afterState = getSnapshot();

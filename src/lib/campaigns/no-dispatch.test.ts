@@ -79,9 +79,7 @@ describe("no real dispatch path exists anywhere in the campaigns feature", () =>
     const schemePattern = /["'`](mailto:|sms:|tel:)/;
     for (const file of files) {
       const content = readFileSync(file, "utf8");
-      expect(content, `${file} contains a mailto:/sms:/tel: URL scheme`).not.toMatch(
-        schemePattern,
-      );
+      expect(content, `${file} contains a mailto:/sms:/tel: URL scheme`).not.toMatch(schemePattern);
     }
   });
 

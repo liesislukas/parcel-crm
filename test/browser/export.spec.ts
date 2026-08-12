@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 
 /**
@@ -6,6 +6,36 @@ import { readFileSync } from "node:fs";
  * and never points at a local server — a localhost result is worth zero
  * (`.agents/rules/deployed-runtime-first.mdc`).
  */
+
+/**
+ * campaign-activity is built from `src/lib/campaigns/store.ts`'s `localStorage`-backed
+ * simulation state, which — per `test/browser/campaigns.spec.ts`'s own documented
+ * pattern — starts empty in every fresh Playwright `BrowserContext`. Creation alone is
+ * not enough: every message starts in the implicit "queued" state with no persisted
+ * `LifecycleEvent` at all — `model.ts`'s `canTransition` forbids a queued -> queued
+ * no-op, so `store.ts`'s `materialise` never records one. Advancing one campaign to
+ * completion (`campaigns.spec.ts`'s own pattern) produces real `message.sent` /
+ * `delivered` / `clicked` / `replied` / `bounced` events for the export to carry.
+ * Duplicated from `campaigns.spec.ts`'s `createAllThree` / `openCampaign` rather than
+ * imported, so this file stays self-contained.
+ */
+async function seedOneCampaign(page: Page): Promise<void> {
+  await page.goto("/campaigns");
+  await page.getByTestId("new-campaign").click();
+  await expect(page.getByTestId("audience-selected-count")).toHaveText("Selected (8)");
+  await page.getByTestId("create-all-channels").click();
+  await expect(page.getByTestId("campaign-list")).toBeVisible();
+
+  const emailCard = page.locator('[data-testid="campaign-card"][data-channel="email"]');
+  await expect(emailCard).toBeVisible();
+  const campaignId = await emailCard.getAttribute("data-campaign-id");
+  expect(campaignId, "email campaign card missing data-campaign-id").not.toBeNull();
+
+  await page.goto(`/campaigns/${campaignId}`);
+  await expect(page.getByTestId("message-list")).toBeVisible();
+  await page.getByTestId("run-to-completion").click();
+  await expect(page.locator('[data-testid="message-row"][data-state="bounced"]')).toHaveCount(1);
+}
 
 // Duplicated here on purpose, byte-exact from `src/lib/export/datasets.ts`. A test that
 // imports the value it is checking proves nothing.
@@ -26,6 +56,13 @@ const DATASETS = [
 
 for (const { id, header, minRows } of DATASETS) {
   test(`downloads the ${id} CSV with the byte-exact header and honest data`, async ({ page }) => {
+    if (id === "campaign-activity") {
+      // No campaign exists yet in this fresh browser context, so without this the
+      // download would always be an honest 0-row file that fails the minRows: 1
+      // check below. Seed one campaign, run it to completion, and let the export
+      // exercise real data.
+      await seedOneCampaign(page);
+    }
     await page.goto("/export");
 
     const button = page.getByTestId(`download-${id}`);

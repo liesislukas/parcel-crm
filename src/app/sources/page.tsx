@@ -92,7 +92,7 @@ function SourceCard({ source }: { source: SourceRow }) {
         <dt className="text-[10px] font-semibold tracking-widest text-black/45 uppercase dark:text-white/45">
           Constraints
         </dt>
-        <dd className="mt-0.5 text-sm leading-relaxed text-black/70 dark:text-white/70">
+        <dd className="mt-0.5 text-sm leading-relaxed break-words text-black/70 dark:text-white/70">
           {source.constraints}
         </dd>
       </div>
@@ -117,14 +117,14 @@ function SignalRow({ signal }: { signal: UnavailableSignal }) {
         </span>
       </div>
       <p className="text-xs text-black/55 dark:text-white/55">{signal.assignmentLine}</p>
-      <p className="text-sm leading-relaxed text-black/80 dark:text-white/80">
+      <p className="text-sm leading-relaxed break-words text-black/80 dark:text-white/80">
         {signal.uiStatement}
       </p>
       <div>
         <dt className="text-[10px] font-semibold tracking-widest text-black/45 uppercase dark:text-white/45">
           What was checked
         </dt>
-        <dd className="mt-0.5 text-sm leading-relaxed text-black/65 dark:text-white/65">
+        <dd className="mt-0.5 text-sm leading-relaxed break-words text-black/65 dark:text-white/65">
           {signal.whatWasChecked}
         </dd>
       </div>

@@ -58,7 +58,9 @@ test("a task assigned on a record appears under its assignee in Tasks and comple
   await page.getByTestId("task-due-input").fill("2027-03-15");
   await page.getByTestId("create-task").click();
 
-  await expect(page.getByTestId("record-task")).toContainText("Send signed LOI to Cresthill");
+  await expect(
+    page.locator('[data-testid="record-task"]', { hasText: "Send signed LOI to Cresthill" }),
+  ).toBeVisible();
   await expect(page.getByTestId("next-step")).not.toContainText("Next step: none");
 
   await page.goto("/tasks");

@@ -207,7 +207,11 @@ function substitute(text: string, vars: Record<string, string>): string {
 }
 
 /** The W2 uniqueness rule: on collision, append "|1", "|2", … up to 8 attempts. */
-function uniqueId(make: (seed: string) => string, seed: string, exists: (id: string) => boolean): string {
+function uniqueId(
+  make: (seed: string) => string,
+  seed: string,
+  exists: (id: string) => boolean,
+): string {
   let candidate = make(seed);
   if (!exists(candidate)) return candidate;
   for (let attempt = 1; attempt <= 8; attempt++) {
@@ -234,7 +238,12 @@ function materialise(
   const newEvents: LifecycleEvent[] = [];
 
   for (const message of campaignMessages) {
-    const planned = planEvents(message.channel, message.recipientIndex, message.id, message.baseTick);
+    const planned = planEvents(
+      message.channel,
+      message.recipientIndex,
+      message.id,
+      message.baseTick,
+    );
     const inRange = planned.filter((pe) => pe.tickOffset > fromTick && pe.tickOffset <= toTick);
 
     for (const pe of inRange) {
@@ -301,10 +310,16 @@ export function createCampaigns(input: {
   const selected = cappedAudience.length - suppressedCount;
 
   const campaignIds: string[] = [];
-  const allSkipped: { ownerKey: string; ownerName: string; channel: Channel; reason: string }[] = [];
+  const allSkipped: { ownerKey: string; ownerName: string; channel: Channel; reason: string }[] =
+    [];
 
   for (const channel of input.channels) {
-    const skipsForChannel: { ownerKey: string; ownerName: string; channel: Channel; reason: string }[] = [];
+    const skipsForChannel: {
+      ownerKey: string;
+      ownerName: string;
+      channel: Channel;
+      reason: string;
+    }[] = [];
     const reachable: { owner: Owner; destination: ReturnType<typeof destinationFor> }[] = [];
 
     for (const owner of cappedAudience) {
@@ -331,7 +346,9 @@ export function createCampaigns(input: {
     }
 
     const campaignSeed = `${input.nowMs}|${input.name}|${channel}`;
-    const newCampaignId = uniqueId(campaignId, campaignSeed, (id) => campaigns.some((c) => c.id === id));
+    const newCampaignId = uniqueId(campaignId, campaignSeed, (id) =>
+      campaigns.some((c) => c.id === id),
+    );
 
     const audienceLabel =
       `${selected} owners selected · ${reachable.length} reachable on this channel · ${skipsForChannel.length} skipped` +
@@ -403,7 +420,13 @@ export function createCampaigns(input: {
     });
   }
 
-  let nextState: CampaignsState = { version: 1, campaigns, messages, events: state.events, shortLinks };
+  let nextState: CampaignsState = {
+    version: 1,
+    campaigns,
+    messages,
+    events: state.events,
+    shortLinks,
+  };
 
   for (const id of campaignIds) {
     const campaign = nextState.campaigns.find((c) => c.id === id);
@@ -453,7 +476,12 @@ export function campaignMaxTick(state: CampaignsState, campaignId: string): numb
   const campaignMessages = state.messages.filter((m) => m.campaignId === campaignId);
   let max = 0;
   for (const message of campaignMessages) {
-    const planned = planEvents(message.channel, message.recipientIndex, message.id, message.baseTick);
+    const planned = planEvents(
+      message.channel,
+      message.recipientIndex,
+      message.id,
+      message.baseTick,
+    );
     for (const pe of planned) {
       if (pe.tickOffset > max) max = pe.tickOffset;
     }
@@ -488,7 +516,10 @@ export function recordBrowserFact(
   const currentState = messageStateFrom(facts);
 
   if (currentState === "bounced") {
-    return { ok: false, reason: "This message bounced in the simulation — the short link is dead." };
+    return {
+      ok: false,
+      reason: "This message bounced in the simulation — the short link is dead.",
+    };
   }
   if (currentState === "opted_out") {
     return {
@@ -650,7 +681,9 @@ export function scheduleFollowUp(
 }
 
 export function ownerHistory(state: CampaignsState, ownerKey: string): LifecycleEvent[] {
-  const messageIds = new Set(state.messages.filter((m) => m.ownerKey === ownerKey).map((m) => m.id));
+  const messageIds = new Set(
+    state.messages.filter((m) => m.ownerKey === ownerKey).map((m) => m.id),
+  );
   const events = state.events.filter((e) => messageIds.has(e.messageId));
 
   const campaignOrder = new Map<string, number>();

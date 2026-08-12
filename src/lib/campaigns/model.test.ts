@@ -42,9 +42,7 @@ describe("messageStateFrom", () => {
   });
 
   it("returns bounced whenever a bounce fact is present, regardless of other facts", () => {
-    expect(messageStateFrom(["message.queued", "message.sent", "message.bounced"])).toBe(
-      "bounced",
-    );
+    expect(messageStateFrom(["message.queued", "message.sent", "message.bounced"])).toBe("bounced");
   });
 
   it("defaults to queued for an empty fact list", () => {

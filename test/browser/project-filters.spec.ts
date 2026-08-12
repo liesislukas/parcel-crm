@@ -107,9 +107,21 @@ test("acreage range narrows the list", async ({ page }) => {
 });
 
 test("the demo combination narrows to two projects (AC6, Demo Script step 1)", async ({ page }) => {
+  // Filter state is derived from the URL alone (`useSearchParams` -> `parseFilterState`), and
+  // every change is written via `router.replace`, which is a real navigation (an RSC round trip
+  // to the server — see `src/components/projects/ProjectsExplorer.tsx`), not a synchronous local
+  // `setState`. Firing the next interaction before one commits reads a stale `state` snapshot in
+  // `ProjectFilterBar`'s `onChange` closure and silently drops the previous change; and clicking a
+  // controlled checkbox whose `checked` prop hasn't caught up yet makes Playwright's `.check()`
+  // see the native DOM value revert before the commit lands, which it treats as a failed click.
+  // So each interaction is followed by a polling assertion that waits for its own commit before
+  // the next interaction fires, and `.click()` (no built-in same-tick verification) replaces
+  // `.check()` for the same reason.
   await page.getByTestId("filter-acres-min").fill("40");
-  await page.getByTestId("filter-outreach-sent").check();
-  await page.getByTestId("filter-stage-negotiating").check();
+  await expect(page.getByTestId("filter-result-count")).toHaveText("Showing 3 of 5 projects");
+  await page.getByTestId("filter-outreach-sent").click();
+  await expect(page.getByTestId("filter-outreach-sent")).toBeChecked();
+  await page.getByTestId("filter-stage-negotiating").click();
   await expect(page.getByTestId("filter-result-count")).toHaveText("Showing 2 of 5 projects");
   const ids = await page
     .getByTestId("project-row")
@@ -146,7 +158,10 @@ test("a filtered URL is reproducible", async ({ page }) => {
 test("an unrecognised stage is stated, not swallowed", async ({ page }) => {
   await expect(page.getByTestId("filter-unknown-rawstage")).toContainText("banana");
 
-  await page.getByTestId("filter-stage-negotiating").check();
+  // See the note in the "demo combination" test above: `.click()` + a polling assertion,
+  // not `.check()`, because the checkbox's checked state only settles once the `router.replace`
+  // navigation commits.
+  await page.getByTestId("filter-stage-negotiating").click();
   await expect(page.getByTestId("filter-unknown-stage")).toHaveText(
     "1 projects hidden: no acquisition stage recorded.",
   );

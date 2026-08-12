@@ -52,9 +52,12 @@ test("shows every requested signal with a verdict and a statement", async ({ pag
     const text = (await row.innerText()).trim();
     expect(text.length, `${signal}: non-empty text`).toBeGreaterThan(0);
 
-    // Each row must carry a verdict from the fixed enum and say what was checked.
+    // Each row must carry a verdict from the fixed enum and say what was checked. The verdict
+    // badge is styled `uppercase` (the same convention as every other status chip on this page —
+    // see the source-card status chip), and `innerText()` reflects that CSS text-transform, so the
+    // match is case-insensitive: the enum value is what's asserted, not its rendered casing.
     expect(text, `${signal}: verdict present`).toMatch(
-      /public-source-found|no-public-source-found|proxy-only-no-direct-source/,
+      /public-source-found|no-public-source-found|proxy-only-no-direct-source/i,
     );
     await expect(row, `${signal}: what was checked`).toContainText("What was checked");
   }

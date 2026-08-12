@@ -187,16 +187,36 @@ test("reopening re-highlights the parcels, and adding one recalculates", async (
   const row = page.getByTestId("project-row").filter({ hasText: name });
   await row.getByTestId("project-open-map").click();
 
-  await waitForMapReady(page);
+  const reopenedMap = await waitForMapReady(page);
   await expect(page.getByTestId("project-mode")).toBeVisible();
   await expect(page.getByTestId("selection-parcels")).toHaveText(
     `${createdCount} parcel${createdCount === 1 ? "" : "s"}`,
   );
 
-  await page.getByTestId("parcel-map").click();
-  await expect(page.getByTestId("selection-parcels")).toHaveText(
-    `${createdCount + 1} parcel${createdCount + 1 === 1 ? "" : "s"}`,
-  );
+  // WI-9's `fitTo` deliberately frames the reopened project tightly around its own
+  // members, so the map's centre point sits inside the block that is already selected.
+  // A plain centre click therefore lands on an already-selected parcel, and the click
+  // handler is intentionally idempotent for repeat clicks on the same parcel (see
+  // `MapWorkspace.handleParcelClick`), so the count would never move — confirmed against
+  // the deployed runtime, where a centre click reproducibly leaves the count unchanged.
+  // Offsetting the click clear of the tightly-fitted centre reaches a neighbouring,
+  // not-yet-selected parcel instead. The `fitTo` jump also uses `animate: false`, so the
+  // freshly-panned tile can still be settling the instant the map becomes visible —
+  // MapLibre's hit-test silently finds nothing if the click lands before that tile has
+  // rendered. Retrying the offset click absorbs that render-settle race without
+  // depending on a fixed sleep.
+  await reopenedMap.scrollIntoViewIfNeeded();
+  const reopenedBox = await reopenedMap.boundingBox();
+  expect(reopenedBox).not.toBeNull();
+  const addX = reopenedBox!.x + reopenedBox!.width / 2 + 150;
+  const addY = reopenedBox!.y + reopenedBox!.height / 2;
+  await expect(async () => {
+    await page.mouse.click(addX, addY);
+    await expect(page.getByTestId("selection-parcels")).toHaveText(
+      `${createdCount + 1} parcel${createdCount + 1 === 1 ? "" : "s"}`,
+      { timeout: 1000 },
+    );
+  }).toPass({ timeout: 15000 });
 
   await page.getByTestId("save-project-selection").click();
   await expect(page.getByTestId("create-project-result")).toContainText("Saved");

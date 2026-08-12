@@ -14,7 +14,14 @@ export const HARD_TICK_CAP = 64;
 export type PlannedEvent = { factType: FactType; tickOffset: number };
 
 const EMAIL_PATHS: FactType[][] = [
-  ["message.sent", "message.delivered", "message.opened", "short_url.visited", "portal.logged_in", "message.replied"],
+  [
+    "message.sent",
+    "message.delivered",
+    "message.opened",
+    "short_url.visited",
+    "portal.logged_in",
+    "message.replied",
+  ],
   ["message.sent", "message.delivered", "message.opened", "short_url.visited", "message.replied"],
   ["message.sent", "message.delivered", "message.opened", "short_url.visited"],
   ["message.sent", "message.delivered", "message.opened"],

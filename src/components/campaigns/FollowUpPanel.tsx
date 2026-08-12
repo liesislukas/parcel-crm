@@ -49,6 +49,23 @@ export function FollowUpPanel({
 
   const suppressed = parentState === "opted_out";
 
+  // `parentState` can change after this component has already mounted — the row is
+  // rendered as soon as the campaign exists (everything "queued"), while a message
+  // typically bounces/replies only once the simulation is advanced later in the same
+  // session. Re-deriving the defaults here, rather than only in `useState`'s initial
+  // value, keeps the panel's default channel and note honest about the message's
+  // *current* state instead of freezing them at mount time.
+  function handleToggleOpen() {
+    setOpen((wasOpen) => {
+      const opening = !wasOpen;
+      if (opening) {
+        setChannel(parentState === "bounced" ? nextChannel(message.channel) : message.channel);
+        setNote(defaultNoteFor(parentState));
+      }
+      return opening;
+    });
+  }
+
   function handleCreate() {
     const result = scheduleFollowUp(message.id, channel, note);
     if (!result.ok) {
@@ -66,7 +83,7 @@ export function FollowUpPanel({
         type="button"
         data-testid="open-follow-up"
         className={BUTTON_CLASS}
-        onClick={() => setOpen((o) => !o)}
+        onClick={handleToggleOpen}
       >
         Schedule follow-up
       </button>
