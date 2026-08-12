@@ -4,10 +4,14 @@ import { toParcel, type RawParcelProperties } from "@/lib/parcel";
 import type { ParcelMeta } from "@/lib/parcelData";
 import {
   EXPORT_DATASETS,
+  buildCampaignActivityRows,
+  buildOwnerRows,
   buildParcelRows,
   exportFilename,
   headerOf,
   slugifyProject,
+  type CampaignEventExportRecord,
+  type OwnerExportRecord,
 } from "./datasets";
 
 const SQUARE: Geometry = {
@@ -275,5 +279,210 @@ describe("slugifyProject", () => {
 
   it("falls back to 'unnamed' when nothing alphanumeric survives", () => {
     expect(slugifyProject("!!!")).toBe("unnamed");
+  });
+});
+
+// ---- W6 (ISSUE-005 gate): owners ----
+
+function ownerRecord(overrides: Partial<OwnerExportRecord> = {}): OwnerExportRecord {
+  return {
+    ownerIdCrm: "OWNER%20NAME",
+    ownerName: "OWNER NAME",
+    mailingAddress: "1 MAIN ST",
+    mailingCityStateZip: "ROCK ISLAND IL 61201",
+    parcelCount: 1,
+    parcelPins: ["0000000001"],
+    totalAcres: 1.5,
+    parcelsMissingAcres: 0,
+    emailMock: "owner.name@mock.invalid",
+    phoneMock: "(309) 555-0100",
+    contactCompletenessMock: "complete",
+    contactEnrichedMock: false,
+    contactEnrichedAtMock: null,
+    ...overrides,
+  };
+}
+
+describe("buildOwnerRows", () => {
+  it("emits a zero-length cell for a missing mocked email, never an N/A or a literal empty string", () => {
+    const rows = buildOwnerRows({
+      owners: [ownerRecord({ emailMock: null, contactCompletenessMock: "incomplete" })],
+      scope: { kind: "all" },
+      generatedAt: "2026-08-12T14:22:07.123Z",
+    });
+
+    const header = headerOf(datasetById("owners"));
+    const cell = (name: string) => rows[0][header.indexOf(name)];
+    expect(cell("email_mock")).toBe("");
+    expect(cell("email_mock")).not.toBe("N/A");
+    expect(cell("contact_completeness_mock")).toBe("incomplete");
+  });
+
+  it("joins ascending PINs with ; for a record with parcel_count 3", () => {
+    const rows = buildOwnerRows({
+      owners: [
+        ownerRecord({
+          parcelCount: 3,
+          parcelPins: ["0000000001", "0000000002", "0000000003"],
+        }),
+      ],
+      scope: { kind: "all" },
+      generatedAt: "2026-08-12T14:22:07.123Z",
+    });
+
+    const header = headerOf(datasetById("owners"));
+    expect(rows[0][header.indexOf("parcel_pins")]).toBe("0000000001;0000000002;0000000003");
+    expect(rows[0][header.indexOf("parcel_count")]).toBe("3");
+  });
+
+  it("writes the literal source_system and the scope/generatedAt cells", () => {
+    const scope = {
+      kind: "project" as const,
+      id: "p1",
+      name: "Riverfront North",
+      slug: "riverfront-north",
+    };
+    const rows = buildOwnerRows({
+      owners: [ownerRecord()],
+      scope,
+      generatedAt: "2026-08-12T14:22:07.123Z",
+    });
+
+    const header = headerOf(datasetById("owners"));
+    const cell = (name: string) => rows[0][header.indexOf(name)];
+    expect(cell("source_system")).toBe("rock-island-county-gis+parcel-crm-mock");
+    expect(cell("export_scope")).toBe("project:riverfront-north");
+    expect(cell("export_generated_at")).toBe("2026-08-12T14:22:07.123Z");
+  });
+
+  it("marks enrichment yes/no and carries the enrichment timestamp", () => {
+    const rows = buildOwnerRows({
+      owners: [
+        ownerRecord({
+          contactEnrichedMock: true,
+          contactEnrichedAtMock: "2026-08-10T09:00:00.000Z",
+        }),
+      ],
+      scope: { kind: "all" },
+      generatedAt: "2026-08-12T14:22:07.123Z",
+    });
+
+    const header = headerOf(datasetById("owners"));
+    const cell = (name: string) => rows[0][header.indexOf(name)];
+    expect(cell("contact_enriched_mock")).toBe("yes");
+    expect(cell("contact_enriched_at_mock")).toBe("2026-08-10T09:00:00.000Z");
+  });
+});
+
+// ---- W7 (ISSUE-006 gate): campaign activity ----
+
+function campaignEvent(
+  overrides: Partial<CampaignEventExportRecord> = {},
+): CampaignEventExportRecord {
+  return {
+    eventIdMock: "ev_0000000000",
+    campaignIdMock: "cmp_0000000000",
+    campaignNameMock: "Acquisition intro — Email",
+    channelMock: "email",
+    messageIdMock: "msg_0000000000",
+    messageSubjectMock: "A quick question about your land",
+    messageBodyMock: "Hello,\nWe are interested.",
+    eventStateMock: "sent",
+    eventAtMock: "2026-08-12T09:00:00.000Z",
+    ownerIdCrm: "OWNER%20NAME",
+    ownerName: "OWNER NAME",
+    projectIdCrm: null,
+    projectNameCrm: null,
+    ...overrides,
+  };
+}
+
+describe("buildCampaignActivityRows", () => {
+  it("replaces every line break in the message body with a single space", () => {
+    const rows = buildCampaignActivityRows({
+      events: [campaignEvent({ messageBodyMock: "Line one\nLine two\r\nLine three" })],
+      scope: { kind: "all" },
+      generatedAt: "2026-08-12T14:22:07.123Z",
+    });
+
+    const header = headerOf(datasetById("campaign-activity"));
+    const cell = rows[0][header.indexOf("message_body_mock")];
+    expect(cell).toBe("Line one Line two Line three");
+    expect(cell).not.toContain("\n");
+    expect(cell).not.toContain("\r");
+  });
+
+  it("writes the literal true and the literal source_system on every row", () => {
+    const rows = buildCampaignActivityRows({
+      events: [campaignEvent(), campaignEvent({ eventIdMock: "ev_0000000001" })],
+      scope: { kind: "all" },
+      generatedAt: "2026-08-12T14:22:07.123Z",
+    });
+
+    const header = headerOf(datasetById("campaign-activity"));
+    for (const row of rows) {
+      expect(row[header.indexOf("simulated")]).toBe("true");
+      expect(row[header.indexOf("source_system")]).toBe("parcel-crm-simulation");
+    }
+  });
+
+  it("produces three rows sharing one message_id_mock for three lifecycle events on one message", () => {
+    const rows = buildCampaignActivityRows({
+      events: [
+        campaignEvent({
+          eventIdMock: "ev_a",
+          eventStateMock: "sent",
+          eventAtMock: "2026-08-12T09:00:00.000Z",
+        }),
+        campaignEvent({
+          eventIdMock: "ev_b",
+          eventStateMock: "delivered",
+          eventAtMock: "2026-08-12T09:05:00.000Z",
+        }),
+        campaignEvent({
+          eventIdMock: "ev_c",
+          eventStateMock: "clicked",
+          eventAtMock: "2026-08-12T09:10:00.000Z",
+        }),
+      ],
+      scope: { kind: "all" },
+      generatedAt: "2026-08-12T14:22:07.123Z",
+    });
+
+    const header = headerOf(datasetById("campaign-activity"));
+    expect(rows.length).toBe(3);
+    const messageIds = new Set(rows.map((r) => r[header.indexOf("message_id_mock")]));
+    expect(messageIds.size).toBe(1);
+    expect(rows.map((r) => r[header.indexOf("event_state_mock")])).toEqual([
+      "sent",
+      "delivered",
+      "clicked",
+    ]);
+  });
+
+  it("sorts rows ascending by event_at_mock, breaking ties by event_id_mock", () => {
+    const rows = buildCampaignActivityRows({
+      events: [
+        campaignEvent({ eventIdMock: "ev_z", eventAtMock: "2026-08-12T09:10:00.000Z" }),
+        campaignEvent({ eventIdMock: "ev_b", eventAtMock: "2026-08-12T09:00:00.000Z" }),
+        campaignEvent({ eventIdMock: "ev_a", eventAtMock: "2026-08-12T09:00:00.000Z" }),
+      ],
+      scope: { kind: "all" },
+      generatedAt: "2026-08-12T14:22:07.123Z",
+    });
+
+    const header = headerOf(datasetById("campaign-activity"));
+    expect(rows.map((r) => r[header.indexOf("event_id_mock")])).toEqual(["ev_a", "ev_b", "ev_z"]);
+  });
+
+  it("carries a fact type with no MessageState mapping (followup.scheduled) through as event_state_mock, unaltered", () => {
+    const rows = buildCampaignActivityRows({
+      events: [campaignEvent({ eventStateMock: "followup.scheduled" })],
+      scope: { kind: "all" },
+      generatedAt: "2026-08-12T14:22:07.123Z",
+    });
+
+    const header = headerOf(datasetById("campaign-activity"));
+    expect(rows[0][header.indexOf("event_state_mock")]).toBe("followup.scheduled");
   });
 });
